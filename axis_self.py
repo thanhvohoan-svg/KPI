@@ -13,7 +13,7 @@ AXES={
 def intro(axis):
  from app import h
  name,desc=AXES[axis]
- return f'<div class="axis-intro"><p class="eyebrow">BƯỚC {axis}/7 · TRỤC {axis}</p><h2>{h(name)}</h2><p>{h(desc)}</p><details class="axis-help"><summary>Lưu ý khi kê khai</summary><p class="muted">Gợi ý áp dụng cho THPT, không phải danh mục bắt buộc. Chỉ kê nhiệm vụ đã được giao có căn cứ; một nhiệm vụ chỉ tính ở một trục. Nếu không có nhiệm vụ, chuyển trục tiếp theo.</p></details></div>'
+ return f'<div class="axis-intro"><p class="eyebrow">BƯỚC {axis}/7 · TRỤC {axis}</p><h2>{h(name)}</h2><p>{h(desc)}</p></div>'
 
 def manageable(c,e,t):
  from app import one,DEMO
