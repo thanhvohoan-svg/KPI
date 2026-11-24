@@ -61,7 +61,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.4</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=15"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.5</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -206,12 +206,13 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   active=[(t,z) for t,z in grouped[i] if not t['cancelled']]
   return sum(bool(z['ready'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note'])) for t,z in active),len(active)
  def url(i):return f'/eval/{eid}?axis={i}'
- body='<section class="panel axis-panel"><h2>Nhập KPI theo 6 trục</h2><p class="muted">Mỗi trục nhập riêng, lưu kết quả rồi chuyển tiếp. Có thể quay lại để bổ sung. Trục không có nhiệm vụ được bỏ qua.</p><div class="axis-nav">'
+ body='<section class="panel axis-workspace"><div class="axis-top"><h2>Phiếu tự đánh giá theo trục</h2><p class="muted">Chọn trục, nhập công việc và lưu lần lượt.</p></div><div class="axis-nav">'
  for i in range(1,7):
   n,total=counts(i);status=f'{n}/{total} đã đủ dữ liệu' if total else 'Không có nhiệm vụ'
   body+=f'<a class="axis-tab{" active" if step==i else ""}" href="{url(i)}"'+(' aria-current="step"' if step==i else '')+f'><b>Trục {i}</b><small>{status}</small></a>'
- body+=f'<a class="axis-tab{" active" if step==7 else ""}" href="{url(7)}"'+(' aria-current="step"' if step==7 else '')+'><b>Tổng hợp</b><small>Điểm chung & gửi duyệt</small></a></div></section>'
+ body+=f'<a class="axis-tab{" active" if step==7 else ""}" href="{url(7)}"'+(' aria-current="step"' if step==7 else '')+'><b>Tổng hợp</b><small>Điểm chung & gửi duyệt</small></a></div>'
  if step==7:
+  body+='</section>'
   rows=[]
   for i in range(1,7):
    n,total=counts(i);rows.append([f'<a href="{url(i)}">Trục {i}</a>',f'{n}/{total}' if total else 'Không có nhiệm vụ',f'{sum(z["kpi"] for t,z in grouped[i]):.2f}',f'{sum(z["max"] for t,z in grouped[i]):.2f}'])
@@ -222,7 +223,9 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   if ready:body+=form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')
   else:body+='<p class="alert">Chưa đủ nhiệm vụ, kết quả, minh chứng, điểm chung hoặc thông tin tổ. Hãy quay lại các trục cần bổ sung.</p>'
   return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section>'
- n,total=counts(step);body+=axis_self.intro(step);body+=f'<section class="panel"><h2>Bước {step}/7 · TRỤC {step}</h2><p>{n}/{total} nhiệm vụ đủ dữ liệu · KPI trục: {sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</p>'
+ n,total=counts(step);body+=axis_self.intro(step)
+ body+=f'<div class="axis-progress"><span><b>{n}/{total}</b> công việc đủ dữ liệu</span><span>KPI trục: <b>{sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</b></span></div><div class="axis-task-list">'
+ if grouped[step]:body+='<h3>Công việc đã lưu</h3>'
  for i,(t,z) in enumerate(grouped[step],1):
   tid=t['id'];ready=bool(z['ready'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note']))
   status='Đã dừng' if t['cancelled'] else 'Đã lưu đủ dữ liệu' if ready else 'Cần bổ sung'
@@ -238,13 +241,13 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
    if attachments:body+='<p>Tệp: '+' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
    body+='</details>'+axis_self.manage_panel(c,e,t,csrf)
   body+='</details>'
- if not total:body+='<p>Không có nhiệm vụ cần nhập ở trục này nếu thực tế không được giao công việc.</p>'
- body+='</section>'
+ if not grouped[step]:body+='<p class="axis-empty">Chưa có công việc đã lưu. Chọn công việc bên dưới để bắt đầu, hoặc chuyển trục nếu không có nhiệm vụ.</p>'
+ body+='</div>'
  body+=axis_self.add_panel(c,e,csrf,step,len(grouped[step]),add_next)
- body+='<section class="panel axis-finish"><p class="muted">Chỉ chuyển trục khi đã lưu tất cả công việc thực tế của quý thuộc trục này.</p><div class="axis-actions">'
+ body+='<div class="axis-finish"><p class="muted">Đã nhập hết công việc của trục? Chọn hoàn thành để chuyển tiếp.</p><div class="axis-actions">'
  if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
- body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></section>'
- body+='<script src="/static/axis.js?v=14" defer></script>'
+ body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></section>'
+ body+='<script src="/static/axis.js?v=15" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
