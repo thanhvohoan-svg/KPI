@@ -4,15 +4,16 @@ from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import UploadFile
 from core import *
 import axis_self
+from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
 from pathlib import Path
-app=FastAPI(title='KPI SCHOOL',docs_url=None,redoc_url=None,openapi_url=None)
+app=FastAPI(title='Hệ thống đánh giá KPI giáo viên',docs_url=None,redoc_url=None,openapi_url=None)
 app.mount('/static',StaticFiles(directory=Path(__file__).parent/'static'),name='static')
 init()
 SECURE=os.environ.get('KPI_HTTPS','0')=='1'
 DEMO=os.environ.get('KPI_DEMO','0')=='1'
-DEMO_HINT='<section class="demo-banner"><b>KPI SCHOOL ONLINE DEMO</b> · Chỉ dùng dữ liệu giả lập. Mỗi trình duyệt có hồ sơ thử riêng; dữ liệu có thể mất khi Render khởi động lại. Không nhập thông tin thật.</section>' if DEMO else ''
+DEMO_HINT='<section class="demo-banner"><b>HỆ THỐNG ĐÁNH GIÁ KPI · BẢN THỬ NGHIỆM</b> · Chỉ dùng dữ liệu giả lập. Mỗi trình duyệt có hồ sơ thử riêng; dữ liệu có thể mất khi Render khởi động lại. Không nhập thông tin thật.</section>' if DEMO else ''
 DEMO_LOGIN='<div class="demo-accounts"><h3>Tài khoản thử nghiệm</h3><p>Giáo viên: <b>giaovien</b><br>Tổ trưởng: <b>totruong</b><br>Ban Giám hiệu: <b>bangiamhieu</b></p><p>Mật khẩu chung: <b>KpiDemo2026!</b></p><p>Đăng xuất rồi đổi vai trò trên cùng trình duyệt để tiếp tục hồ sơ. Mở cửa sổ riêng tư để bắt đầu lại.</p></div>' if DEMO else ''
 def h(v): return html.escape(str(v if v is not None else ''),quote=True)
 def one(c,sql,p=()): return c.execute(sql,p).fetchone()
@@ -61,7 +62,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=19"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.9</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=20"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.0</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -115,7 +116,7 @@ def login_get(r:Request):
   if u:return redirect('/')
   if s:csrf=s['csrf']; tok=None
   else:tok,csrf=issue(c);c.commit()
-  res=layout('Đăng nhập', '<section class="panel login"><h2>Chào mừng đến KPI SCHOOL</h2><p>'+('Chọn tài khoản mẫu ở bên dưới.' if DEMO else 'Nhập họ tên đầy đủ. Mật khẩu lần đầu là số điện thoại.')+'</p>'+form('/login',csrf,field('Họ và tên','name',attrs='required autocomplete="username"')+field('Mật khẩu','password',kind='password',attrs='required autocomplete="current-password"'),'Đăng nhập')+DEMO_LOGIN+'</section>')
+  res=layout('Đăng nhập', '<section class="panel login"><h2>Hệ thống đánh giá KPI giáo viên</h2><p>'+('Chọn tài khoản mẫu ở bên dưới.' if DEMO else 'Nhập họ tên đầy đủ. Mật khẩu lần đầu là số điện thoại.')+'</p>'+form('/login',csrf,field('Họ và tên','name',attrs='required autocomplete="username"')+field('Mật khẩu','password',kind='password',attrs='required autocomplete="current-password"'),'Đăng nhập')+DEMO_LOGIN+'</section>')
   return cookie(res,tok) if tok else res
 @app.post('/login')
 async def login_post(r:Request):
