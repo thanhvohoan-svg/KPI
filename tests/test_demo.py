@@ -22,7 +22,7 @@ class DemoTest(unittest.TestCase):
   self.assertNotEqual(c.cookies['kpi_demo_workspace'],other.cookies['kpi_demo_workspace'])
   self.assertEqual(c.get('/eval/2').status_code,403);self.assertEqual(c.get('/export/eval/2').status_code,403);self.assertEqual(c.get('/manage').status_code,403)
   self.assertIn('Nội dung công việc',c.get('/eval/1?axis=1').text)
-  self.assertIn('Không có nhiệm vụ cần nhập',c.get('/eval/1?axis=1').text)
+  self.assertIn('Chưa có công việc đã lưu',c.get('/eval/1?axis=1').text)
   self.assertIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=1').text)
   self.assertNotIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=3').text)
   base={'source':'KH giả lập','product':'Sản phẩm mẫu','grp':'1','qty':'1','due':'2026-09-30','done':'1','corrections':'0','finish':'2026-09-30','evidence':'Minh chứng giả lập'}
@@ -53,6 +53,11 @@ class DemoTest(unittest.TestCase):
   page=c.get('/eval/1?axis=1&add=1').text
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',page)
   self.assertIn('Nhập công việc 2',page)
+  self.assertEqual(page.count('class="panel axis-workspace"'),1)
+  self.assertIn('class="axis-intro"',page)
+  self.assertIn('class="axis-progress"',page)
+  self.assertIn('class="new-work-panel"',page)
+  self.assertNotIn('class="panel new-work-panel"',page)
   self.assertIn('<details class="task work-card" name="axis-work">',page)
   self.assertIn('<details class="new-work" name="axis-work" open>',page)
   self.post(c,'/action/self_add/1',dict(base,axis='1',choice='Sinh hoạt chuyên môn',next_work='0'),'/eval/1')
