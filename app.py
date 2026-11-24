@@ -61,7 +61,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=15"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.5</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=15"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.6</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -241,7 +241,6 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
    if attachments:body+='<p>Tệp: '+' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
    body+='</details>'+axis_self.manage_panel(c,e,t,csrf)
   body+='</details>'
- if not grouped[step]:body+='<p class="axis-empty">Chưa có công việc đã lưu. Chọn công việc bên dưới để bắt đầu, hoặc chuyển trục nếu không có nhiệm vụ.</p>'
  body+='</div>'
  body+=axis_self.add_panel(c,e,csrf,step,len(grouped[step]),add_next)
  body+='<div class="axis-finish"><p class="muted">Đã nhập hết công việc của trục? Chọn hoàn thành để chuyển tiếp.</p><div class="axis-actions">'
