@@ -13,7 +13,7 @@ AXES={
 def intro(axis):
  from app import h
  name,desc=AXES[axis]
- return f'<section class="panel"><p class="eyebrow">TRỤC {axis} · HƯỚNG DẪN KÊ KHAI</p><h2>{h(name)}</h2><p>{h(desc)}</p><p class="muted">Gợi ý áp dụng cho THPT, không phải danh mục bắt buộc. Chỉ kê nhiệm vụ đã được giao có căn cứ; một nhiệm vụ chỉ tính ở một trục. Nếu không có nhiệm vụ, chuyển trục tiếp theo.</p></section>'
+ return f'<div class="axis-intro"><p class="eyebrow">BƯỚC {axis}/7 · TRỤC {axis}</p><h2>{h(name)}</h2><p>{h(desc)}</p><details class="axis-help"><summary>Lưu ý khi kê khai</summary><p class="muted">Gợi ý áp dụng cho THPT, không phải danh mục bắt buộc. Chỉ kê nhiệm vụ đã được giao có căn cứ; một nhiệm vụ chỉ tính ở một trục. Nếu không có nhiệm vụ, chuyển trục tiếp theo.</p></details></div>'
 
 def manageable(c,e,t):
  from app import one,DEMO
@@ -50,13 +50,13 @@ def title_fields(c,axis,t):
 def metadata(c,axis,t=None):
  from app import field,textarea,select
  t=t or {}
- return title_fields(c,axis,t)+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+textarea('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500"')+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+field('Thời hạn hoàn thành','due',t.get('due',''),'date','required')+'</div>'
+ return title_fields(c,axis,t)+'<div class="twocol work-meta">'+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+field('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500" placeholder="Tên sản phẩm hoặc kết quả dự kiến"')+'</div>'+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+field('Thời hạn hoàn thành','due',t.get('due',''),'date','required')+'</div>'
 
 def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
  fields=metadata(c,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+field('Ngày hoàn thành thực tế','finish','','date')+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
  opened=' open' if not count or add_next else ''
- return f'<section class="panel new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b>＋ Nhập công việc {count+1}</b><span>Chọn hoặc tự khai công việc</span></summary><p>Chọn công việc từ danh sách xổ xuống. Nếu chưa có, chọn Công việc khác. Chỉ chọn nhiệm vụ thực tế được giao; nhóm và kết quả cần được rà soát.</p><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></section>'
+ return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b>＋ Nhập công việc {count+1}</b><span>Chọn để mở / thu gọn</span></summary><p class="muted">Chọn công việc có sẵn hoặc mục Công việc khác.</p><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
 
 def manage_panel(c,e,t,csrf):
  from app import form,check
