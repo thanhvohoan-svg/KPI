@@ -1,0 +1,1 @@
+(()=>{const f=document.getElementById('axis-results');if(!f)return;let dirty=false;f.addEventListener('input',()=>{dirty=true;});f.addEventListener('change',()=>{dirty=true;});f.addEventListener('submit',()=>{dirty=false;});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});})();
