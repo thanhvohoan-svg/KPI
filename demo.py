@@ -30,11 +30,11 @@ def seed():
             c.execute('INSERT INTO users(code,name,login,role,department,subject,cohort,password,must_change) VALUES(?,?,?,?,?,?,?,?,0)',(code,name,normalize(login),role,dep,subject,'Tổ trưởng' if role=='leader' else 'Giáo viên',password_hash(PASS)))
         c.execute('INSERT INTO periods(year,quarter,mode) VALUES(2026,3,"task")')
         c.execute('INSERT INTO evaluations(period,user,department,cohort,common) SELECT 1,id,department,cohort,28 FROM users WHERE code<>"ADMIN"')
-        tasks=[('Thực hiện kế hoạch giảng dạy',1,1,'Kế hoạch, sổ đầu bài',10,'2026-09-30'),('Sinh hoạt chuyên môn',1,1,'Biên bản sinh hoạt',4,'2026-09-25'),('Ứng dụng công nghệ trong dạy học',2,2,'Sản phẩm số',2,'2026-09-30')]
+        tasks=[('Thực hiện kế hoạch giảng dạy',1,1,'Kế hoạch, sổ đầu bài',10,'2026-09-30'),('Sinh hoạt chuyên môn',1,1,'Biên bản sinh hoạt',4,'2026-09-25'),('Ứng dụng công nghệ trong dạy học',2,3,'Sản phẩm số',2,'2026-09-30')]
         for title,grp,axis,product,qty,due in tasks:
             c.execute('INSERT INTO library(title,grp,axis,product) VALUES(?,?,?,?)',(title,grp,axis,product))
-            for e in c.execute('SELECT id,user FROM evaluations').fetchall():
-                # Primary teacher has prefilled draft; other records demonstrate distinct workflow states.
+            for e in c.execute('SELECT id,user FROM evaluations WHERE user<>2').fetchall():
+                # Primary teacher starts blank and selects tasks; other records illustrate workflow.
                 done=qty if e['user']!=2 or axis!=2 else 1
                 finish=due if done==qty else None
                 c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,'KH DEMO 01 (giả lập)',axis,grp,product,qty,due,done,0,finish,'Minh chứng mẫu, không phải hồ sơ thật'))
