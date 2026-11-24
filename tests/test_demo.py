@@ -22,7 +22,8 @@ class DemoTest(unittest.TestCase):
   self.assertNotEqual(c.cookies['kpi_demo_workspace'],other.cookies['kpi_demo_workspace'])
   self.assertEqual(c.get('/eval/2').status_code,403);self.assertEqual(c.get('/export/eval/2').status_code,403);self.assertEqual(c.get('/manage').status_code,403)
   self.assertIn('Nội dung công việc',c.get('/eval/1?axis=1').text)
-  self.assertIn('Chưa có công việc đã lưu',c.get('/eval/1?axis=1').text)
+  self.assertNotIn('Chưa có công việc đã lưu',c.get('/eval/1?axis=1').text)
+  self.assertNotIn('Lưu ý khi kê khai',c.get('/eval/1?axis=1').text)
   self.assertIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=1').text)
   self.assertNotIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=3').text)
   base={'source':'KH giả lập','product':'Sản phẩm mẫu','grp':'1','qty':'1','due':'2026-09-30','done':'1','corrections':'0','finish':'2026-09-30','evidence':'Minh chứng giả lập'}
