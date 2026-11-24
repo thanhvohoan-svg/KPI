@@ -61,7 +61,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=15"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.6</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=17"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.7</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -216,7 +216,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   rows=[]
   for i in range(1,7):
    n,total=counts(i);rows.append([f'<a href="{url(i)}">Trục {i}</a>',f'{n}/{total}' if total else 'Không có nhiệm vụ',f'{sum(z["kpi"] for t,z in grouped[i]):.2f}',f'{sum(z["max"] for t,z in grouped[i]):.2f}'])
-  body+='<section class="panel"><h2>Bước 7/7 · Tổng hợp và gửi duyệt</h2>'+table(['Trục','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
+  body+='<section class="panel"><h2>Tổng hợp và gửi duyệt</h2>'+table(['Trục','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
   body+='<section class="panel"><h2>Điểm tiêu chí chung</h2>'+form(f'/action/common/{eid}',csrf,'<input type="hidden" name="axis_summary" value="1">'+field('Điểm tự chấm theo biểu mẫu có thẩm quyền','common',e['common'],'number','min="0" max="30" step="0.01" required'),'Lưu điểm')+'</section>'
   ready=calc['ready'] and e['common'] is not None and e['department'] is not None and all(counts(i)[0]==counts(i)[1] for i in range(1,7))
   body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'</p>'
