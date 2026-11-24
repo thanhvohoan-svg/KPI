@@ -21,7 +21,17 @@ class DemoTest(unittest.TestCase):
   self.login(c,'giaovien'); self.login(other,'giaovien')
   self.assertNotEqual(c.cookies['kpi_demo_workspace'],other.cookies['kpi_demo_workspace'])
   self.assertEqual(c.get('/eval/2').status_code,403);self.assertEqual(c.get('/export/eval/2').status_code,403);self.assertEqual(c.get('/manage').status_code,403)
-  self.post(c,'/action/task/13',{'done':'2','corrections':'0','finish':'2026-09-30','evidence':'Minh chứng giả lập'},'/eval/1')
+  self.assertIn('Nội dung công việc',c.get('/eval/1?axis=1').text)
+  self.assertIn('Không có nhiệm vụ cần nhập',c.get('/eval/1?axis=1').text)
+  self.assertIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=1').text)
+  self.assertNotIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=3').text)
+  base={'source':'KH giả lập','product':'Sản phẩm mẫu','grp':'1','qty':'1','due':'2026-09-30','done':'1','corrections':'0','finish':'2026-09-30','evidence':'Minh chứng giả lập'}
+  self.post(c,'/action/self_add/2',dict(base,axis='1',choice='Bồi dưỡng học sinh giỏi'),'/eval/1',403)
+  self.post(c,'/action/self_add/1',dict(base,axis='3',choice='Bồi dưỡng học sinh giỏi'),'/eval/1',400)
+  for axis,title in [('1','Bồi dưỡng học sinh giỏi'),('1','Sinh hoạt chuyên môn'),('3','Ứng dụng công nghệ trong dạy học')]:
+   self.post(c,'/action/self_add/1',dict(base,axis=axis,choice=title),'/eval/1')
+  self.assertIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=1').text)
+  self.post(c,'/action/self_add/1',dict(base,axis='1',choice='Bồi dưỡng học sinh giỏi'),'/eval/1',400)
   self.post(c,'/action/common/1',{'common':'29'},'/eval/1');self.post(c,'/action/submit/1',{'confirmed':'1'},'/eval/1')
   self.assertIn('Đã nộp',c.get('/eval/1').text);self.assertIn('Bản nháp',other.get('/eval/1').text)
   self.post(c,'/action/common/1',{'common':'30'},'/eval/1',403)
