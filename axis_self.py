@@ -13,7 +13,7 @@ AXES={
 def intro(axis):
  from app import h
  name,desc=AXES[axis]
- return f'<div class="axis-intro"><p class="eyebrow">BƯỚC {axis}/7 · TRỤC {axis}</p><h2>{h(name)}</h2><p>{h(desc)}</p></div>'
+ return f'<div class="axis-intro"><p class="eyebrow">TRỤC {axis}</p><h2>{h(name)}</h2><p>{h(desc)}</p></div>'
 
 def manageable(c,e,t):
  from app import one,DEMO
