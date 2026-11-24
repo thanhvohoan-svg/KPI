@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import UploadFile
 from core import *
+import axis_self
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
 from pathlib import Path
@@ -60,7 +61,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.2</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.3</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -221,7 +222,7 @@ def axis_editor(c,e,calc,csrf,step):
   if ready:body+=form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')
   else:body+='<p class="alert">Chưa đủ nhiệm vụ, kết quả, minh chứng, điểm chung hoặc thông tin tổ. Hãy quay lại các trục cần bổ sung.</p>'
   return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section>'
- n,total=counts(step);body+=f'<section class="panel"><h2>Bước {step}/7 · TRỤC {step}</h2><p>{n}/{total} nhiệm vụ đủ dữ liệu · KPI trục: {sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</p>'
+ n,total=counts(step);body+=axis_self.intro(step)+axis_self.add_panel(c,e,csrf,step,bool(total));body+=f'<section class="panel"><h2>Bước {step}/7 · TRỤC {step}</h2><p>{n}/{total} nhiệm vụ đủ dữ liệu · KPI trục: {sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</p>'
  if total:
   body+=f'<form id="axis-results" method="post" action="/action/axis/{eid}"><input type="hidden" name="csrf" value="{h(csrf)}"><input type="hidden" name="axis" value="{step}">'
   for t,z in grouped[step]:
@@ -239,8 +240,9 @@ def axis_editor(c,e,calc,csrf,step):
    if t['cancelled']:continue
    tid=t['id'];attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,));body+='<details><summary>'+h(t['title'])+'</summary>'+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data"')
    if attachments:body+='<p>Tệp: '+' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
-   body+='</details>'
-  body+='</section><script src="/static/axis.js" defer></script>'
+   body+='</details>'+axis_self.manage_panel(c,e,t,csrf)
+  body+='</section>'
+ body+='<script src="/static/axis.js?v=13" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
@@ -344,6 +346,7 @@ async def actions(r:Request,action:str='',obj:int=0):
      if one(c,'SELECT id FROM tasks WHERE evaluation=? AND title=? AND source=?',(e['id'],title,source)):continue
      c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due) VALUES(?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due));audit(c,uid,'Giao nhiệm vụ',e['id'],title)
     return redirect(f'/assign?period={obj}')
+   if action in ('self_add','self_edit','self_delete'):return axis_self.action(c,u,f,action,obj)
    if action=='axis':
     e=get_eval(c,u,obj);own_edit(u,e);axis=integer(f,'axis',1,6);advance=integer(f,'advance',0,1);tasks=allrows(c,'SELECT * FROM tasks WHERE evaluation=? AND axis=? AND cancelled=0 ORDER BY id',(obj,axis))
     if not tasks:fail('Trục này không có nhiệm vụ cần nhập.')
@@ -388,7 +391,7 @@ async def actions(r:Request,action:str='',obj:int=0):
      own_edit(u,e)
      if action=='common':c.execute('UPDATE evaluations SET common=? WHERE id=?',(number(f,'common'),obj));audit(c,uid,'Lưu điểm chung',obj)
      else:
-      if not f.get('confirmed') or not calc['ready'] or e['common'] is None or e['department'] is None:fail('Cần xác nhận, phân tổ, nhiệm vụ, kết quả, minh chứng và điểm chung đầy đủ.')
+      if not f.get('confirmed') or not calc['ready'] or e['common'] is None or e['department'] is None or any(t['outstanding'] and not t['outstanding_note'] and not t['cancelled'] for t,z in calc['rows']):fail('Cần xác nhận, phân tổ, nhiệm vụ, kết quả, minh chứng và điểm chung đầy đủ.')
       snapshot=json.dumps({'common':e['common'],'calc':calc,'level':suggestion(calc,e['common'])},ensure_ascii=False);c.execute('UPDATE evaluations SET status="submitted",self_snapshot=?,self_level=?,team_common=NULL,final_common=NULL,final_level=NULL WHERE id=?',(snapshot,suggestion(calc,e['common']),obj));audit(c,uid,'Nộp hồ sơ',obj,snapshot)
     else:
      if uid==e['user'] or not (can_manage(u) or team_review(u,e)):fail('Không có quyền duyệt hồ sơ.',403)
