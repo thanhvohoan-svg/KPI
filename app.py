@@ -61,7 +61,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.3</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.4</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -199,7 +199,7 @@ def assign_get(r:Request):
   ps=allrows(c,'SELECT * FROM periods WHERE locked=0 ORDER BY year DESC,quarter DESC');csrf=s['csrf']
   if not ps:return layout('Giao nhiệm vụ','<p>Chưa có kỳ mở.</p>',u,csrf)
   pid=int(r.query_params.get('period',ps[0]['id']));p=period(c,pid);unlocked(p);es=[e for e in scope_evals(c,u,pid) if e['status'] in ('draft','returned') and (can_manage(u) or team_review(u,e))];ds=allrows(c,'SELECT * FROM departments ORDER BY name');lib=allrows(c,'SELECT * FROM library ORDER BY id'); options=[('','Nhập nhiệm vụ riêng')]+[(x['id'],x['title']) for x in lib]; body='<section class="panel"><form method="get" class="inline">'+select('Kỳ','period',[(x['id'],f'Quý {x["quarter"]}/{x["year"]}') for x in ps],pid)+'<button>Chọn</button></form></section><section class="panel"><h2>Phân công nhiệm vụ</h2><p class="muted">Chọn người nhận hoặc cả tổ. Tổ trưởng chỉ giao cho tổ viên. Nhiệm vụ không được trùng cùng nội dung, căn cứ và trục.</p>'+form(f'/action/assign/{pid}',csrf,select('Nhiệm vụ mẫu','library',options)+field('Tên nhiệm vụ (nếu không chọn mẫu)','title')+field('Căn cứ giao nhiệm vụ','source',attrs='required')+select('Trục','axis',[(i,f'Trục {i}') for i in range(1,7)])+select('Nhóm','grp',[(i,f'Nhóm {i} – {50+i*50}') for i in range(1,5)])+field('Sản phẩm dự kiến','product')+field('Số lượng','qty',1,'number','min="1" max="1000000" required')+field('Hạn hoàn thành','due',end_of_quarter(p['year'],p['quarter']).isoformat(),'date','required')+select('Phân công','target',[('selected','Người được chọn'),('all','Tất cả trong phạm vi')]+[(f'd:{d["id"]}',d['name']) for d in ds])+ '<details open><summary>Chọn giáo viên</summary><div class="pick">'+''.join(check(e['name']+' · '+(e['dept'] or 'Chưa phân tổ'),f'e_{e["id"]}') for e in es)+'</div></details>','Giao nhiệm vụ')+'</section>';return layout('Giao nhiệm vụ',body,u,csrf)
-def axis_editor(c,e,calc,csrf,step):
+def axis_editor(c,e,calc,csrf,step,add_next=False):
  eid=e['id']; grouped={i:[] for i in range(1,7)}
  for t,z in calc['rows']:grouped[t['axis']].append((t,z))
  def counts(i):
@@ -222,27 +222,29 @@ def axis_editor(c,e,calc,csrf,step):
   if ready:body+=form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')
   else:body+='<p class="alert">Chưa đủ nhiệm vụ, kết quả, minh chứng, điểm chung hoặc thông tin tổ. Hãy quay lại các trục cần bổ sung.</p>'
   return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section>'
- n,total=counts(step);body+=axis_self.intro(step)+axis_self.add_panel(c,e,csrf,step,bool(total));body+=f'<section class="panel"><h2>Bước {step}/7 · TRỤC {step}</h2><p>{n}/{total} nhiệm vụ đủ dữ liệu · KPI trục: {sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</p>'
- if total:
-  body+=f'<form id="axis-results" method="post" action="/action/axis/{eid}"><input type="hidden" name="csrf" value="{h(csrf)}"><input type="hidden" name="axis" value="{step}">'
-  for t,z in grouped[step]:
-   if t['cancelled']:continue
-   tid=t['id'];pre=f't{tid}_';body+=f'<div class="task"><h3>{h(t["title"])}</h3><p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(t["effective_due"] or t["due"])} · Nhóm {t["grp"]}</p><div class="formgrid">'+field('Số lượng hoàn thành',pre+'done',t['done'],'number','min="0" max="1000000"')+field('Số lần sửa do lỗi chủ quan',pre+'corrections',t['corrections'],'number','min="0" max="1000000"')+field('Ngày hoàn thành thực tế',pre+'finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)',pre+'evidence',t['evidence'])+check('Đề xuất vượt yêu cầu',pre+'outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động',pre+'outstanding_note',t['outstanding_note'])+f'<p class="scoreline">Điểm đã lưu: A {z["a"]:.2f} · B {z["b"]:.2f} · C {z["c"]:.2f} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</p></div>'
-  body+='<div class="axis-actions"><button type="submit" name="advance" value="0" class="secondary">Lưu trục (bản nháp)</button><button type="submit" name="advance" value="1">Lưu và '+(f'sang trục {step+1}' if step<6 else 'tổng hợp')+' →</button></div></form>'
- else:body+='<p>Không có nhiệm vụ cần nhập ở trục này.</p>'+f'<a class="btn" href="{url(step+1)}">'+(f'Sang trục {step+1}' if step<6 else 'Tổng hợp')+' →</a>'
- for t,z in grouped[step]:
-  if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['title'])+' · '+h(t['cancel_reason'])+'</p>'
- if step>1:body+=f'<p><a class="btn secondary" href="{url(step-1)}">← Trục trước</a></p>'
- body+='</section>'
- if total:
-  body+='<section class="panel"><h2>Đính kèm minh chứng của trục</h2><p class="muted">Lưu bản nháp phía trên trước khi tải tệp.</p>'
-  for t,z in grouped[step]:
-   if t['cancelled']:continue
-   tid=t['id'];attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,));body+='<details><summary>'+h(t['title'])+'</summary>'+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data"')
+ n,total=counts(step);body+=axis_self.intro(step);body+=f'<section class="panel"><h2>Bước {step}/7 · TRỤC {step}</h2><p>{n}/{total} nhiệm vụ đủ dữ liệu · KPI trục: {sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</p>'
+ for i,(t,z) in enumerate(grouped[step],1):
+  tid=t['id'];ready=bool(z['ready'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note']))
+  status='Đã dừng' if t['cancelled'] else 'Đã lưu đủ dữ liệu' if ready else 'Cần bổ sung'
+  body+=f'<details class="task work-card" name="axis-work"><summary><span class="work-name"><b>Công việc {i}: {h(t["title"])}</b><small>{status} · {h(t["done"] if t["done"] is not None else "—")}/{t["qty"]} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</small></span><span class="work-open">Mở / sửa</span></summary>'
+  if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
+  else:
+   body+=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(t["effective_due"] or t["due"])} · Nhóm {t["grp"]}</p>'
+   fields='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])
+   body+=form(f'/action/task/{tid}',csrf,fields,'Lưu và thu gọn công việc',extra='data-work-form')
+   body+=f'<p class="scoreline">Điểm đã lưu: A {z["a"]:.2f} · B {z["b"]:.2f} · C {z["c"]:.2f} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</p>'
+   attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,))
+   body+='<details><summary>Đính kèm minh chứng</summary>'+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data" data-work-form')
    if attachments:body+='<p>Tệp: '+' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
    body+='</details>'+axis_self.manage_panel(c,e,t,csrf)
-  body+='</section>'
- body+='<script src="/static/axis.js?v=13" defer></script>'
+  body+='</details>'
+ if not total:body+='<p>Không có nhiệm vụ cần nhập ở trục này nếu thực tế không được giao công việc.</p>'
+ body+='</section>'
+ body+=axis_self.add_panel(c,e,csrf,step,len(grouped[step]),add_next)
+ body+='<section class="panel axis-finish"><p class="muted">Chỉ chuyển trục khi đã lưu tất cả công việc thực tế của quý thuộc trục này.</p><div class="axis-actions">'
+ if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
+ body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></section>'
+ body+='<script src="/static/axis.js?v=14" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
@@ -255,7 +257,7 @@ def eval_get(eid:int,r:Request):
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if editable:
    raw=r.query_params.get('axis','1');step=int(raw) if raw in ('1','2','3','4','5','6','7') else 1
-   body+=axis_editor(c,e,calc,csrf,step)
+   body+=axis_editor(c,e,calc,csrf,step,r.query_params.get('add')=='1')
   else:
    if editable:body+='<section class="panel"><h2>Điểm tiêu chí chung</h2>'+form(f'/action/common/{eid}',csrf,field('Điểm tự chấm theo biểu mẫu có thẩm quyền','common',e['common'],'number','min="0" max="30" step="0.01" required'),'Lưu điểm')+'</section>'
    body+='<section class="panel"><h2>Nhiệm vụ được giao</h2><p class="muted">Điểm được tính theo quy tắc kỳ: '+h(e['mode'])+'. Nhiệm vụ chưa hoàn thành áp dụng giới hạn chất lượng/tiến độ thận trọng; xem hướng dẫn sử dụng.</p>'
@@ -347,6 +349,10 @@ async def actions(r:Request,action:str='',obj:int=0):
      c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due) VALUES(?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due));audit(c,uid,'Giao nhiệm vụ',e['id'],title)
     return redirect(f'/assign?period={obj}')
    if action in ('self_add','self_edit','self_delete'):return axis_self.action(c,u,f,action,obj)
+   if action=='axis_next':
+    e=get_eval(c,u,obj);own_edit(u,e);axis=integer(f,'axis',1,6);calc=result(c,e)
+    if any(t['axis']==axis and not t['cancelled'] and (not z['ready'] or not t['evidence'] or (t['outstanding'] and not t['outstanding_note'])) for t,z in calc['rows']):fail('Trục còn công việc thiếu dữ liệu. Mở công việc cần bổ sung, lưu lại rồi chuyển trục.')
+    return redirect(f'/eval/{obj}?axis={axis+1}')
    if action=='axis':
     e=get_eval(c,u,obj);own_edit(u,e);axis=integer(f,'axis',1,6);advance=integer(f,'advance',0,1);tasks=allrows(c,'SELECT * FROM tasks WHERE evaluation=? AND axis=? AND cancelled=0 ORDER BY id',(obj,axis))
     if not tasks:fail('Trục này không có nhiệm vụ cần nhập.')
