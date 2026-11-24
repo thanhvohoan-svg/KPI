@@ -21,21 +21,47 @@ def manageable(c,e,t):
  mark=one(c,'SELECT action FROM audit WHERE evaluation=? AND actor=? AND detail=? AND action IN (?,?) ORDER BY id DESC LIMIT 1',(e['id'],e['user'],str(t['id']),'Tự khai nhiệm vụ','Xóa nhiệm vụ tự khai'))
  return bool(mark and mark['action']=='Tự khai nhiệm vụ') or (DEMO and t['source']=='KH DEMO 01 (giả lập)')
 
-def metadata(t=None):
+
+# Demo suggestions only. Real deployments use the school-managed task library.
+SUGGESTIONS={
+ 1:["Thực hiện kế hoạch giảng dạy","Soạn kế hoạch bài dạy","Kiểm tra, đánh giá học sinh","Sinh hoạt chuyên môn","Công tác chủ nhiệm lớp","Bồi dưỡng học sinh giỏi","Phụ đạo học sinh","Thực hiện hồ sơ chuyên môn","Coi thi, chấm thi"],
+ 2:["Xây dựng hoặc góp ý quy chế nhà trường","Xây dựng quy trình chuyên môn","Tham gia kiểm tra nội bộ","Rà soát hồ sơ, kế hoạch theo phân công","Thực hiện nhiệm vụ quản lý được giao"],
+ 3:["Ứng dụng công nghệ trong dạy học","Xây dựng học liệu số","Thực hiện nhiệm vụ chuyển đổi số","Nghiên cứu khoa học","Thực hiện sáng kiến","Hướng dẫn học sinh nghiên cứu khoa học"],
+ 4:["Thực hiện nhiệm vụ công tác Đảng","Tham gia công tác Công đoàn","Tham gia công tác Đoàn thanh niên","Thực hiện nhiệm vụ xây dựng tổ chức theo phân công"],
+ 5:["Tổ chức hoạt động trải nghiệm, hướng nghiệp","Giáo dục kỹ năng sống","Hỗ trợ học sinh có hoàn cảnh khó khăn","Tổ chức hoạt động văn hóa, văn nghệ, thể thao","Tham gia hoạt động cộng đồng"],
+ 6:["Thực hiện nhiệm vụ giáo dục quốc phòng - an ninh","Tham gia công tác an toàn trường học","Tuyên truyền phòng chống tệ nạn xã hội","Tham gia phòng cháy, chữa cháy theo phân công","Thực hiện nhiệm vụ đối ngoại, hợp tác quốc tế"]
+}
+
+def choices(c,axis,current=''):
+ from app import DEMO
+ names=[r['title'] for r in c.execute('SELECT title FROM library WHERE axis=? ORDER BY title',(axis,))]
+ if DEMO:names+=SUGGESTIONS[axis]
+ if current:names.append(current)
+ unique={}
+ for name in names:unique.setdefault(normalize(name),name)
+ return list(unique.values())
+
+def title_fields(c,axis,t):
+ from app import field,select
+ current=t.get('title','')
+ options=[('','-- Chọn nội dung công việc --')]+[(name,name) for name in choices(c,axis,current)]+[('__other__','Công việc khác (tự nhập)')]
+ return '<div class="work-choice">'+select('Nội dung công việc', 'choice',options,current,attrs='required data-work-choice')+'<div data-work-custom>'+field('Tên công việc khác (chỉ nhập nếu chọn Công việc khác)','title',attrs='maxlength="500" placeholder="Nhập tên công việc chưa có trong danh mục"')+'</div></div>'
+
+def metadata(c,axis,t=None):
  from app import field,textarea,select
  t=t or {}
- return field('Tên công việc / nhiệm vụ','title',t.get('title',''),attrs='required maxlength="500" placeholder="Nhập công việc thực tế được giao"')+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+textarea('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500"')+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+field('Thời hạn hoàn thành','due',t.get('due',''),'date','required')+'</div>'
+ return title_fields(c,axis,t)+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+textarea('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500"')+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+field('Thời hạn hoàn thành','due',t.get('due',''),'date','required')+'</div>'
 
-def add_panel(e,csrf,axis,has_tasks):
+def add_panel(c,e,csrf,axis,has_tasks):
  from app import field,textarea,check,form
- fields=metadata()+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+field('Ngày hoàn thành thực tế','finish','','date')+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
- return '<section class="panel"><details'+('' if has_tasks else ' open')+'><summary><b>＋ Thêm công việc vào trục</b></summary><p>Giáo viên tự khai tên công việc. Nhóm và kết quả là tự đề xuất, cần được người có thẩm quyền rà soát.</p>'+form(f'/action/self_add/{e["id"]}',csrf,f'<input type="hidden" name="axis" value="{axis}">'+fields,'Lưu công việc')+'</details></section>'
+ fields=metadata(c,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+field('Ngày hoàn thành thực tế','finish','','date')+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
+ return '<section class="panel"><details'+('' if has_tasks else ' open')+'><summary><b>＋ Thêm công việc vào trục</b></summary><p>Chọn công việc từ danh sách xổ xuống. Nếu chưa có, chọn Công việc khác. Chỉ chọn nhiệm vụ thực tế được giao; nhóm và kết quả cần được rà soát.</p>'+form(f'/action/self_add/{e["id"]}',csrf,f'<input type="hidden" name="axis" value="{axis}">'+fields,'Lưu công việc')+'</details></section>'
 
 def manage_panel(c,e,t,csrf):
  from app import form,check
  if not manageable(c,e,t):return ''
  tid=t['id']
- return '<details><summary>Sửa tên, phân nhóm, sản phẩm hoặc hạn công việc tự khai</summary>'+form(f'/action/self_edit/{tid}',csrf,metadata(dict(t)),'Lưu nội dung công việc')+'</details><details><summary>Xóa công việc tự khai / mẫu</summary>'+form(f'/action/self_delete/{tid}',csrf,check('Xác nhận xóa công việc này và minh chứng đi kèm','confirmed'),'Xóa công việc')+'</details>'
+ return '<details><summary>Sửa tên, phân nhóm, sản phẩm hoặc hạn công việc tự khai</summary>'+form(f'/action/self_edit/{tid}',csrf,metadata(c,t['axis'],dict(t)),'Lưu nội dung công việc')+'</details><details><summary>Xóa công việc tự khai / mẫu</summary>'+form(f'/action/self_delete/{tid}',csrf,check('Xác nhận xóa công việc này và minh chứng đi kèm','confirmed'),'Xóa công việc')+'</details>'
 
 def action(c,u,f,action,obj):
  from app import get_eval,own_edit,integer,datefield,required,optional,one,fail,redirect,DEMO
@@ -53,7 +79,13 @@ def action(c,u,f,action,obj):
   c.execute('DELETE FROM attachments WHERE task=?',(tid,));c.execute('DELETE FROM tasks WHERE id=?',(tid,));audit(c,uid,'Xóa nhiệm vụ tự khai',e['id'],str(tid))
   audit(c,uid,'Chi tiết công việc đã xóa',e['id'],t['title'])
   return redirect(f'/eval/{e["id"]}?axis={axis}')
- title=required(f,'title');source=required(f,'source');product=required(f,'product');grp=integer(f,'grp',1,4);qty=integer(f,'qty',1,1000000);due=datefield(f,'due');cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
+ choice=required(f,'choice')
+ if choice=='__other__':title=required(f,'title')
+ else:
+  allowed=choices(c,axis,t['title'] if action=='self_edit' else '')
+  if choice not in allowed:fail('Công việc không có trong danh mục của trục này.')
+  title=choice
+ source=required(f,'source');product=required(f,'product');grp=integer(f,'grp',1,4);qty=integer(f,'qty',1,1000000);due=datefield(f,'due');cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
  if due>cutoff:fail('Hạn phải trong hoặc trước ngày kết thúc quý.')
  for old in c.execute('SELECT id,title,source FROM tasks WHERE evaluation=?',(e['id'],)):
   if old['id']!=tid and normalize(old['title'])==normalize(title) and normalize(old['source'])==normalize(source):fail('Công việc đã có trong phiếu. Không kê trùng giữa các trục.')
