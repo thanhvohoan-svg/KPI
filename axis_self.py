@@ -52,16 +52,17 @@ def metadata(c,axis,t=None):
  t=t or {}
  return title_fields(c,axis,t)+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+textarea('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500"')+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+field('Thời hạn hoàn thành','due',t.get('due',''),'date','required')+'</div>'
 
-def add_panel(c,e,csrf,axis,has_tasks):
+def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
  fields=metadata(c,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+field('Ngày hoàn thành thực tế','finish','','date')+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
- return '<section class="panel"><details'+('' if has_tasks else ' open')+'><summary><b>＋ Thêm công việc vào trục</b></summary><p>Chọn công việc từ danh sách xổ xuống. Nếu chưa có, chọn Công việc khác. Chỉ chọn nhiệm vụ thực tế được giao; nhóm và kết quả cần được rà soát.</p>'+form(f'/action/self_add/{e["id"]}',csrf,f'<input type="hidden" name="axis" value="{axis}">'+fields,'Lưu công việc')+'</details></section>'
+ opened=' open' if not count or add_next else ''
+ return f'<section class="panel new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b>＋ Nhập công việc {count+1}</b><span>Chọn hoặc tự khai công việc</span></summary><p>Chọn công việc từ danh sách xổ xuống. Nếu chưa có, chọn Công việc khác. Chỉ chọn nhiệm vụ thực tế được giao; nhóm và kết quả cần được rà soát.</p><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></section>'
 
 def manage_panel(c,e,t,csrf):
  from app import form,check
  if not manageable(c,e,t):return ''
  tid=t['id']
- return '<details><summary>Sửa tên, phân nhóm, sản phẩm hoặc hạn công việc tự khai</summary>'+form(f'/action/self_edit/{tid}',csrf,metadata(c,t['axis'],dict(t)),'Lưu nội dung công việc')+'</details><details><summary>Xóa công việc tự khai / mẫu</summary>'+form(f'/action/self_delete/{tid}',csrf,check('Xác nhận xóa công việc này và minh chứng đi kèm','confirmed'),'Xóa công việc')+'</details>'
+ return '<details><summary>Sửa tên, phân nhóm, sản phẩm hoặc hạn công việc tự khai</summary>'+form(f'/action/self_edit/{tid}',csrf,metadata(c,t['axis'],dict(t)),'Lưu nội dung công việc',extra='data-work-form')+'</details><details><summary>Xóa công việc tự khai / mẫu</summary>'+form(f'/action/self_delete/{tid}',csrf,check('Xác nhận xóa công việc này và minh chứng đi kèm','confirmed'),'Xóa công việc')+'</details>'
 
 def action(c,u,f,action,obj):
  from app import get_eval,own_edit,integer,datefield,required,optional,one,fail,redirect,DEMO
@@ -96,4 +97,5 @@ def action(c,u,f,action,obj):
   if finish and finish>cutoff:fail('Ngày hoàn thành sau thời điểm chốt quý.')
   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence,outstanding,outstanding_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due,done,cor,finish,ev,out,note)).lastrowid
   audit(c,uid,'Tự khai nhiệm vụ',e['id'],str(tid));audit(c,uid,'Nội dung nhiệm vụ tự khai',e['id'],title)
+ if action=='self_add' and f.get('next_work')=='1':return redirect(f'/eval/{e["id"]}?axis={axis}&add=1#new-work')
  return redirect(f'/eval/{e["id"]}?axis={axis}')
