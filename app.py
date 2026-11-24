@@ -61,7 +61,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=17"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.7</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · KPI SCHOOL</title><link rel="stylesheet" href="/static/style.css?v=18"></head><body><header><a class="brand" href="/">KPI SCHOOL<span>QUẢN LÝ ĐÁNH GIÁ VIÊN CHỨC</span></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>KPI SCHOOL · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 1.8</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -223,7 +223,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   if ready:body+=form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')
   else:body+='<p class="alert">Chưa đủ nhiệm vụ, kết quả, minh chứng, điểm chung hoặc thông tin tổ. Hãy quay lại các trục cần bổ sung.</p>'
   return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section>'
- n,total=counts(step);body+=axis_self.intro(step)
+ n,total=counts(step);body+=f'<div class="axis-content" data-axis="{step}">'+axis_self.intro(step)
  body+=f'<div class="axis-progress"><span><b>{n}/{total}</b> công việc đủ dữ liệu</span><span>KPI trục: <b>{sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</b></span></div><div class="axis-task-list">'
  if grouped[step]:body+='<h3>Công việc đã lưu</h3>'
  for i,(t,z) in enumerate(grouped[step],1):
@@ -245,7 +245,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
  body+=axis_self.add_panel(c,e,csrf,step,len(grouped[step]),add_next)
  body+='<div class="axis-finish"><p class="muted">Đã nhập hết công việc của trục? Chọn hoàn thành để chuyển tiếp.</p><div class="axis-actions">'
  if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
- body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></section>'
+ body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></div></section>'
  body+='<script src="/static/axis.js?v=15" defer></script>'
  return body
 
