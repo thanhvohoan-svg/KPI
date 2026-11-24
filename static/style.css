@@ -3,3 +3,38 @@
 .axis-nav{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.axis-tab{display:flex;flex-direction:column;gap:4px;text-decoration:none;color:var(--navy);background:#f2f6fa;border:1px solid var(--border);padding:12px;border-radius:8px;min-width:0}.axis-tab small{font-size:12px;color:var(--muted)}.axis-tab.active{background:var(--navy);color:white;border-color:var(--navy)}.axis-tab.active small{color:#dbeafe}.axis-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-top:18px}.axis-panel h2{margin-bottom:8px}@media(max-width:900px){.axis-nav{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:500px){.axis-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.axis-actions button{width:100%}}
 
 .work-card{background:#f8fafc;padding:0;overflow:hidden}.work-card>summary,.new-work>summary{padding:15px 16px;align-items:center;list-style:none}.work-card>summary::-webkit-details-marker,.new-work>summary::-webkit-details-marker{display:none}.work-card>summary{background:#f2f7fc}.work-card[open]>summary{border-bottom:1px solid var(--border);background:#e5eef8}.work-card>form,.work-card>p,.work-card>details{margin:14px 16px}.work-name{display:flex;flex-direction:column;gap:4px}.work-name b{color:var(--navy);font-size:15px}.work-name small{font-size:12px}.work-open{font-weight:650;color:var(--blue)}.new-work-panel{border:2px solid #a7c2dd}.new-work-panel details{margin:0}.new-work>summary{padding:3px 0;font-size:17px}.new-work>summary b{color:var(--blue)}.axis-finish form{margin:0}.axis-finish .axis-actions{justify-content:space-between}
+
+/* V1.5: one continuous workspace, compact on desktop and mobile. */
+.axis-workspace{max-width:1100px;margin:0 auto 18px;padding:24px 28px;border-radius:14px;box-shadow:0 4px 18px #173b620a}
+.axis-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.axis-top h2,.axis-top p{margin:0}
+.axis-workspace .axis-nav{gap:6px;margin-bottom:18px}
+.axis-workspace .axis-tab{padding:10px;gap:2px}
+.axis-intro{padding:15px 0 10px;border-top:1px solid var(--border)}
+.axis-intro h2{font-size:21px;line-height:1.35;margin:4px 0 8px}
+.axis-intro p{margin:5px 0}
+.axis-intro .axis-help{margin:6px 0;color:var(--blue);font-size:13px}
+.axis-help summary{cursor:pointer}
+.axis-progress{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
+.axis-progress b{color:var(--navy);font-size:15px}
+.axis-task-list{padding:10px 0 0}
+.axis-task-list h3{font-size:14px;color:var(--navy);margin:2px 0 10px}
+.axis-empty{font-size:13px;color:var(--muted);margin:0 0 8px}
+.axis-workspace .work-card{margin:0 0 8px;border-radius:7px}
+.axis-workspace .work-card>summary{padding:11px 13px}
+.axis-workspace .new-work-panel{border:0;margin:0;padding:12px 0 0;border-top:1px solid var(--border)}
+.axis-workspace .new-work{margin:0}
+.axis-workspace .new-work>summary{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 0;cursor:pointer}
+.axis-workspace .new-work>summary span{font-weight:400}
+.axis-workspace .new-work>form{margin:8px 0 0}
+.axis-workspace .work-meta,.axis-workspace .formgrid{gap:12px}
+.axis-workspace label{margin:6px 0 10px;font-size:14px}
+.axis-workspace input,.axis-workspace select,.axis-workspace textarea{padding:8px 10px;font-size:14px}
+.axis-workspace textarea{min-height:60px}
+.axis-workspace .axis-actions{margin-top:12px;justify-content:flex-end;gap:8px}
+.axis-workspace .axis-finish{border-top:1px solid var(--border);padding-top:12px;margin-top:16px}
+.axis-workspace .axis-finish .axis-actions{justify-content:space-between;margin-top:7px}
+.axis-workspace .axis-finish form{margin-left:auto}
+.axis-workspace summary:focus-visible,.axis-workspace a:focus-visible,.axis-workspace button:focus-visible{outline:3px solid #81b5e5;outline-offset:2px}
+@media(max-width:700px){.axis-workspace{padding:16px}.axis-intro h2{font-size:18px}.axis-top{gap:4px}.axis-workspace .axis-nav{grid-template-columns:repeat(4,minmax(0,1fr))}.axis-workspace .axis-tab{padding:7px}.axis-workspace .axis-tab small{font-size:10px}.axis-workspace .axis-actions{justify-content:stretch}.axis-workspace .axis-actions button{flex:1}.axis-workspace .axis-finish form{margin-left:0}.axis-workspace .axis-finish .axis-actions form{flex:1}.axis-workspace .axis-finish .axis-actions button{width:100%}}
+@media(max-width:420px){.axis-workspace .axis-nav{grid-template-columns:repeat(3,minmax(0,1fr))}.axis-workspace .axis-actions{flex-direction:column}.axis-workspace .axis-actions .btn,.axis-workspace .axis-actions button{text-align:center;width:100%}}
