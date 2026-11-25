@@ -67,9 +67,9 @@ def member_header(e,calc,common):
  import personal_exports as pe
  return '<section class="panel team-member-header"><div><a class="team-back" href="'+h(url(e['period']))+'">← Danh sách tổ viên</a><h2>'+h(e['name'])+'</h2><p class="muted">Quý '+str(e['quarter'])+'/'+str(e['year'])+' · '+h(e['dept'] or 'Chưa phân tổ')+'</p></div><div>'+badge(e['status'])+pe.export_buttons(e['id'])+'</div></section>'
 
-def score_panel(e,calc):
+def score_panel(c,e,calc):
  from app import table,h
- own=e['common']; team=e['team_common']; final=e['final_common']; kpi=calc['kpi']
+ own=e['common'] if cc.read(c,e) or e['status'] not in ('draft','returned') else None; team=e['team_common']; final=e['final_common']; kpi=calc['kpi']
  def fmt(v):return f'{v:.2f}' if v is not None else '—'
  return '<section class="panel team-score-panel"><h2>KẾT QUẢ ĐÁNH GIÁ</h2>'+table(['Nội dung','Điểm chuẩn','Cá nhân','Tổ trưởng','BGH'],[
  ['Tiêu chí chung','30',fmt(own),fmt(team),fmt(final)],
