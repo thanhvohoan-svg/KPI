@@ -34,7 +34,7 @@ def render(status,has_team=True,team_confirmed=False,locked=False,connected=Fals
   out+='<li class="workflow-step '+state+'"'+(' aria-current="step"' if state in ('current','returned') else '')+'><div class="workflow-circle">'+icon(key)+'</div><strong>BƯỚC '+str(i+1)+'</strong><b>'+label+'</b><span>'+sub+'</span><small>'+desc[state]+'</small></li>'
   if i<3:out+='<li class="workflow-arrow" aria-hidden="true">'+icon('arrow')+'</li>'
  out+='</ol>'
- if status!='draft' or locked:
+ if (status!='draft' and not (connected and status=='submitted')) or locked:
   out+='<p class="workflow-status '+('returned' if status=='returned' else '')+'">'+icon('return' if status=='returned' else 'check' if status=='approved' else 'file')+'<span>Trạng thái: '+escape(msg.get(status,'Chưa xác định'))+(' · Đã khóa kỳ' if locked else '')+'</span></p>'
  out+='</section>'
  return out
