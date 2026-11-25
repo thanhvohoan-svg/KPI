@@ -6,6 +6,7 @@ from core import *
 import axis_self
 import workflow
 import common_criteria as cc
+import personal_exports as pe
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -64,7 +65,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=22"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.2</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=23"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.3</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -240,7 +241,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'</p>'
   if ready:body+=form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')
   else:body+='<p class="alert">Chưa đủ nhiệm vụ, kết quả, minh chứng, điểm chung hoặc thông tin tổ. Hãy quay lại các trục cần bổ sung.</p>'
-  return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section>'
+  return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section><section class="panel"><h2>XUẤT EXCEL HỒ SƠ ĐÁNH GIÁ</h2><p class="muted">Xuất dữ liệu đã lưu; bản nháp vẫn có thể tải xuống để kiểm tra.</p>'+pe.export_buttons(eid)+'</section>'
  n,total=counts(step);body+=f'<div class="axis-content" data-axis="{step}">'+axis_self.intro(step)
  body+=f'<div class="axis-progress"><span><b>{n}/{total}</b> công việc đủ dữ liệu</span><span>KPI trục: <b>{sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</b></span></div><div class="axis-task-list">'
  if grouped[step]:body+='<h3>Công việc đã lưu</h3>'
@@ -273,7 +274,7 @@ def eval_get(eid:int,r:Request):
   u,s=auth(c,r)
   if not u:return redirect('/login')
   if u['must_change']:return redirect('/password')
-  e=get_eval(c,u,eid); csrf=s['csrf']; calc=result(c,e); common=shown_common(e); editable=u['id']==e['user'] and not e['locked'] and e['status'] in ('draft','returned');review=not e['locked'] and (team_review(u,e) or (can_manage(u) and u['id']!=e['user'])); body=f'<section class="panel toolbar"><div><h2>{h(e["name"])} · Quý {e["quarter"]}/{e["year"]}</h2><p>{h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])} · {"Đã khóa" if e["locked"] else "Đang mở"}</p></div><a class="btn secondary" href="/export/eval/{eid}">Xuất Excel cá nhân</a></section><div class="stats">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+stat('Vượt yêu cầu',f'{calc["outstanding"]}/{calc["n"]}')+'</div>'
+  e=get_eval(c,u,eid); csrf=s['csrf']; calc=result(c,e); common=shown_common(e); editable=u['id']==e['user'] and not e['locked'] and e['status'] in ('draft','returned');review=not e['locked'] and (team_review(u,e) or (can_manage(u) and u['id']!=e['user'])); body=f'<section class="panel toolbar"><div><h2>{h(e["name"])} · Quý {e["quarter"]}/{e["year"]}</h2><p>{h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])} · {"Đã khóa" if e["locked"] else "Đang mở"}</p></div>{pe.export_buttons(eid)}</section><div class="stats">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+stat('Vượt yêu cầu',f'{calc["outstanding"]}/{calc["n"]}')+'</div>'
   body+=workflow_panel(c,e)
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if can_manage(u):body+=cc.assignment_panel(c,e,csrf)
@@ -481,34 +482,17 @@ def export_eval(eid:int,r:Request):
  with closing(connect()) as c:
   u,s=auth(c,r)
   if not u or u['must_change']:fail('Cần đăng nhập.',401)
-  e=get_eval(c,u,eid);calc=result(c,e);common=shown_common(e);b,w=workbook();f=formats(w);sh=w.add_worksheet('Phụ lục II');setup_sheet(sh);sh.freeze_panes(6,2);sh.repeat_rows(4,5)
-  sh.merge_range('A1:S1',f'PHỤ LỤC II – PHIẾU CHẤM KPI QUÝ {e["quarter"]} NĂM {e["year"]}',f['title']);sh.set_row(0,30);sh.merge_range('A2:S2',f'Họ và tên: {e["name"]}  |  Mã: {e["code"]}  |  Tổ: {e["dept"] or "Chưa phân tổ"}',f['wrap']);sh.merge_range('A3:S3',f'Trạng thái: {STATUSES[e["status"]]}  |  Cách tính: {e["mode"]}  |  Kết quả xuất từ hệ thống, cần ký xác nhận.',f['wrap']);sh.merge_range('A4:S4','I. KẾT QUẢ THỰC HIỆN NHIỆM VỤ THEO KPI (70 ĐIỂM)',f['title'])
-  sh.merge_range('A5:H5','Danh mục nhiệm vụ',f['head']);sh.merge_range('I5:R5','Kết quả thực hiện',f['head']);sh.write('S5','Ghi chú',f['head'])
-  headers=['TT','Nhiệm vụ được giao / căn cứ','Phân nhóm','Điểm chuẩn','Sản phẩm cụ thể','Số lượng','Thời hạn','Điểm chấm','Tỷ lệ hoàn thành A','Điểm A','Số lần chỉnh sửa','Điểm B','Ngày hoàn thành','Điểm C','Điểm thực tế','Điểm KPI (%)','Điểm tối đa','Điểm đạt','Ghi chú / minh chứng'];write_row(sh,5,headers,f['head']);sh.set_row(5,58)
-  for j,width in enumerate([5,38,10,10,27,9,13,12,13,12,12,12,13,12,12,12,12,12,48]):sh.set_column(j,j,width)
-  # One row per task; Q is each task's weighted share of the 70-point total.
-  n=len(calc['rows']);totalrow=6+n;xl_total=totalrow+1
-  for i,(t,z) in enumerate(calc['rows'],6):
-   rr=i+1;sh.set_row(i,50);note=f'Trục {t["axis"]}; thực tế {t["done"] if t["done"] is not None else "chưa nhập"}/{t["qty"]}; chậm chủ quan {z["late"]} ngày; {t["evidence"]}; {t["outstanding_note"]}; {t["extension_reason"]}; {t["late_reason"]}; {t["cancel_reason"]}'
-   write_row(sh,i,[i-5,t['title']+'\n'+t['source'],f'Nhóm {t["grp"]}',50+t['grp']*50,t['product'],t['qty'],t['effective_due'] or t['due'],z['base'],z['ratio'],z['a'],t['corrections'],z['b'],t['finish'],z['c'],z['actual'],z['actual']/z['base'] if z['base'] else 0,z['max'],z['kpi'],note],f['body'])
-   for col in (6,12):
-    val=(t['effective_due'] or t['due']) if col==6 else t['finish']
-    if val:sh.write_datetime(i,col,dt.datetime.fromisoformat(val),f['date'])
-   sh.write_formula(i,7,'=0' if t['cancelled'] else f'=D{rr}'+(f'*F{rr}' if e['mode']=='product' else ''),f['num'],z['base']);sh.write_number(i,8,z['ratio'],f['pct']);sh.write_formula(i,9,f'=H{rr}*I{rr}',f['num'],z['a']);sh.write_formula(i,11,f'=MIN(J{rr},MAX(0,H{rr}*(1-5%*K{rr})))' if z['ratio']<1 else f'=MAX(0,H{rr}*(1-5%*K{rr}))',f['num'],z['b']);sh.write_formula(i,13,f'=MIN(J{rr},MAX(0,H{rr}*(1-5%*{z["late"]})))' if z['ratio']<1 and not t['finish'] else f'=MAX(0,H{rr}*(1-5%*{z["late"]}))',f['num'],z['c']);sh.write_formula(i,14,f'=AVERAGE(J{rr},L{rr},N{rr})',f['num'],z['actual']);sh.write_formula(i,15,f'=IFERROR(O{rr}/H{rr},0)',f['pct'],z['actual']/z['base'] if z['base'] else 0);sh.write_formula(i,16,f'=IFERROR(70*H{rr}/$H${xl_total},0)',f['num'],z['max']);sh.write_formula(i,17,f'=P{rr}*Q{rr}',f['num'],z['kpi'])
-  sh.write(totalrow,1,'TỔNG',f['bold']);sh.write_formula(totalrow,7,f'=SUM(H7:H{xl_total-1})' if n else '=0',f['bold'],calc['base']);sh.write_formula(totalrow,17,f'=SUM(R7:R{xl_total-1})' if n else '=0',f['bold'],calc['kpi']);sh.write_number(totalrow,16,70 if calc['base'] else 0,f['bold'])
-  pos=totalrow+2;sh.merge_range(pos,0,pos,18,'II. TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ CÁ NHÂN',f['title']);pos+=1;write_row(sh,pos,['Nội dung','Điểm tối đa','Tự chấm','Tổ xác nhận','BGH xác nhận'],f['head']);pos+=1;selfkpi=calc['kpi'];snap=json.loads(e['self_snapshot']) if e['self_snapshot'] else None
-  if snap:selfkpi=snap['calc']['kpi']
-  for vals in [['Tiêu chí chung',30,e['common'],e['team_common'],e['final_common']],['KPI',70,selfkpi,calc['kpi'] if e['team_common'] is not None else None,calc['kpi'] if e['final_common'] is not None else None],['Tổng điểm',100,e['common']+selfkpi if e['common'] is not None else None,e['team_common']+calc['kpi'] if e['team_common'] is not None else None,e['final_common']+calc['kpi'] if e['final_common'] is not None else None]]:write_row(sh,pos,vals,f['body']);sh.set_row(pos,30);pos+=1
-  sh.merge_range(pos+1,0,pos+1,18,'III. ĐỀ XUẤT / XẾP LOẠI',f['title']);sh.merge_range(pos+2,0,pos+2,18,'Tự đề xuất: '+(e['self_level'] or suggestion(calc,e['common']))+' | BGH xác nhận: '+(e['final_level'] or 'Chưa xác nhận'),f['wrap']);sh.merge_range(pos+3,0,pos+3,18,'Nhận xét: '+(e['note'] or ''),f['wrap']);sh.merge_range(pos+5,0,pos+5,5,'CÁ NHÂN TỰ ĐÁNH GIÁ',f['head']);sh.merge_range(pos+5,6,pos+5,11,'TỔ TRƯỞNG / NGƯỜI NHẬN XÉT',f['head']);sh.merge_range(pos+5,12,pos+5,18,'BAN GIÁM HIỆU / NGƯỜI CÓ THẨM QUYỀN',f['head']);sh.set_row(pos+6,70);sh.print_area(0,0,pos+6,18)
-  detail=cc.read(c,e)
-  if detail:
-   k,data,scores=cc.get(c,e);cs=w.add_worksheet('Tiêu chí chung');cs.set_column('A:A',12);cs.set_column('B:B',95);cs.set_column('C:D',16);cs.merge_range('A1:D1',f'PHỤ LỤC {k} – TIÊU CHÍ CHUNG',f['title']);cs.merge_range('A2:D2',e['name']+' · Quý '+str(e['quarter'])+'/'+str(e['year']),f['wrap']);write_row(cs,2,['Mục','Nội dung tiêu chí','Điểm chuẩn','Tự chấm'],f['head']);row=3
-   for group,items in data:
-    cs.merge_range(row,0,row,1,group,f['head']);cs.write_number(row,2,cc.points(items),f['head']);cs.write_number(row,3,sum(scores.get(x[0],0) for x in items),f['head']);row+=1
-    for key,desc,maximum in items:
-     write_row(cs,row,[key,desc,maximum,scores.get(key)],f['body']);cs.set_row(row,max(30,15*(1+len(desc)//95)));row+=1
-   write_row(cs,row,['','Tổng điểm',30,e['common']],f['head']);cs.freeze_panes(3,2)
-  return send_xlsx(b,w,f'KPI_{e["name"]}_{e["year"]}_Q{e["quarter"]}.xlsx')
+  e=get_eval(c,u,eid);calc=result(c,e);b,w=workbook()
+  pe.kpi_sheet(w,c,e,calc)
+  return send_xlsx(b,w,pe.filename('KPI',e))
+@app.get('/export/common/{eid}')
+def export_common(eid:int,r:Request):
+ with closing(connect()) as c:
+  u,s=auth(c,r)
+  if not u or u['must_change']:fail('Cần đăng nhập.',401)
+  e=get_eval(c,u,eid);b,w=workbook();k=pe.common_sheet(w,c,e)
+  return send_xlsx(b,w,pe.filename('Phu_luc_'+k+'_cham',e))
+
 @app.get('/export/period/{pid}')
 def export_period(pid:int,r:Request):
  with closing(connect()) as c:
