@@ -7,6 +7,18 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from demo import app, PASS
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+def common_data(c,eid,target):
+ from common_criteria import DEFAULT,leaves
+ import re
+ page=c.get(f'/eval/{eid}?part=common').text
+ m=re.search(r'name="template_token" value="([^"]+)"',page)
+ assert m is not None
+ rows=leaves(DEFAULT['3']);data={'template_token':m.group(1)}
+ remaining=30-target
+ for key,_,maximum in rows:
+  reduction=min(remaining,maximum);remaining-=reduction;data['score_'+key]=str(maximum-reduction)
+ return data
+
 class DemoTest(unittest.TestCase):
  def client(self): return TestClient(app,base_url='https://testserver')
  def csrf(self,c,path='/'):
@@ -33,7 +45,7 @@ class DemoTest(unittest.TestCase):
    self.post(c,'/action/self_add/1',dict(base,axis=axis,choice=title),'/eval/1')
   self.assertIn('Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=1').text)
   self.post(c,'/action/self_add/1',dict(base,axis='1',choice='Bồi dưỡng học sinh giỏi'),'/eval/1',400)
-  self.post(c,'/action/common/1',{'common':'29'},'/eval/1');self.post(c,'/action/submit/1',{'confirmed':'1'},'/eval/1')
+  self.post(c,'/action/common_detail/1',common_data(c,1,29),'/eval/1');self.post(c,'/action/submit/1',{'confirmed':'1'},'/eval/1')
   self.assertIn('Đã nộp',c.get('/eval/1').text);self.assertIn('Bản nháp',other.get('/eval/1').text)
   self.post(c,'/action/common/1',{'common':'30'},'/eval/1',403)
   self.logout(c);self.login(c,'totruong');self.assertEqual(c.get('/eval/5').status_code,403);self.assertEqual(c.get('/export/eval/5').status_code,403)
@@ -41,7 +53,7 @@ class DemoTest(unittest.TestCase):
   self.logout(c);self.login(c,'bangiamhieu');self.assertEqual(c.get('/manage').status_code,200)
   self.post(c,'/action/approve/1',{'common':'28','level':'Hoàn thành tốt nhiệm vụ','note':'BGH duyệt mẫu','confirmed':'1'},'/eval/1')
   self.assertIn('BGH đã duyệt',c.get('/eval/1').text)
-  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200); w=load_workbook(io.BytesIO(r.content),data_only=True);self.assertEqual(w.active['R10'].value,70)
+  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200); w=load_workbook(io.BytesIO(r.content),data_only=True);self.assertEqual(w.active['R10'].value,70);self.assertIn('Tiêu chí chung',w.sheetnames)
   r=c.get('/export/period/1');self.assertEqual(r.status_code,200);w=load_workbook(io.BytesIO(r.content),data_only=True);self.assertEqual(len(w.sheetnames),3)
   self.logout(c);self.login(c,'giaovien');self.assertIn('BGH đã duyệt',c.get('/eval/1').text)
   self.assertIn('Bản nháp',other.get('/eval/1').text)
