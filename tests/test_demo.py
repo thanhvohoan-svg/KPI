@@ -75,6 +75,11 @@ class DemoTest(unittest.TestCase):
   self.assertNotIn('BƯỚC 1. CÁ NHÂN TỰ ĐÁNH GIÁ',page)
   self.assertLess(page.index('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ'),page.index('PHẦN I. TIÊU CHÍ CHUNG'))
   self.assertIn('PHẦN I. TIÊU CHÍ CHUNG',page)
+  self.assertNotIn('Trạng thái: Cá nhân đang tự đánh giá',page)
+  self.assertIn('class="personal-flow-frame"',page)
+  self.assertIn('class="panel workflow workflow-connected"',page)
+  self.assertIn('class="personal-flow-content"',page)
+  self.assertLess(page.index('class="personal-flow-content"'),page.index('PHẦN I. TIÊU CHÍ CHUNG'))
   summary=c.get('/eval/1?axis=7').text
   self.assertIn('XUẤT EXCEL HỒ SƠ ĐÁNH GIÁ',summary)
   self.assertIn('summary-scores',summary)
