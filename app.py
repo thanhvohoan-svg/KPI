@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import UploadFile
 from core import *
 import axis_self
+import workflow
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -62,7 +63,7 @@ def layout(title,body,u=None,csrf='',nav=True):
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=20"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.0</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=21"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.1</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -90,6 +91,9 @@ def own_edit(u,e):
  if u['id']!=e['user'] or e['status'] not in ('draft','returned'):fail('Hồ sơ không thể chỉnh sửa.',403)
 def result(c,e):
  t=allrows(c,'SELECT * FROM tasks WHERE evaluation=? ORDER BY axis,id',(e['id'],)); hol=[r['day'] for r in allrows(c,'SELECT day FROM holidays WHERE period=?',(e['period'],))]; return calculate(t,e['mode'],hol,end_of_quarter(e['year'],e['quarter']).isoformat())
+def workflow_panel(c,e):
+ has_team=e['department'] is not None and one(c,"SELECT id FROM users WHERE active=1 AND role='leader' AND department=? AND id<>? LIMIT 1",(e['department'],e['user'])) is not None
+ return workflow.render(e['status'],has_team,e['team_common'] is not None,bool(e['locked']))
 def shown_common(e):return e['final_common'] if e['final_common'] is not None else e['team_common'] if e['team_common'] is not None else e['common']
 def group_quota(c,e):
  q=one(c,'SELECT SUM(final_level=?) good,SUM(final_level=?) xs FROM evaluations WHERE period=? AND department IS ? AND cohort=? AND status="approved" AND id<>?',(LEVELS[1],LEVELS[0],e['period'],e['department'],e['cohort'],e['id'])); return int(q['good'] or 0),int(q['xs'] or 0)
@@ -141,12 +145,23 @@ def home(r:Request):
   if not periods:return layout('Tổng quan','<section class="panel">Chưa mở kỳ đánh giá. '+('<a class="btn" href="/manage">Thiết lập kỳ</a>' if can_manage(u) else 'Vui lòng liên hệ Ban Giám hiệu.')+'</section>',u,csrf)
   try:pid=int(r.query_params.get('period',periods[0]['id']))
   except ValueError:fail('Kỳ không hợp lệ')
-  p=period(c,pid); es=scope_evals(c,u,pid); rows=[]; submitted=sum(e['status'] not in ('draft','returned') for e in es); approved=sum(e['status']=='approved' for e in es)
+  p=period(c,pid); es=scope_evals(c,u,pid); role_cards=''; view=r.query_params.get('view','team')
+  if u['role'] in ('leader','deputy'):
+   if view not in ('self','team'):view='team'
+   personal=[e for e in es if e['user']==u['id']]
+   members=[e for e in es if e['user']!=u['id']]
+   role_cards='<section class="panel role-cards">'+workflow.dashboard_card(f'/?period={pid}&view=self','ĐÁNH GIÁ CÁ NHÂN','Hồ sơ của bản thân','person',view=='self')+workflow.dashboard_card(f'/?period={pid}&view=team','ĐÁNH GIÁ TỔ VIÊN','Quản lý hồ sơ của tổ' if u['role']=='leader' else 'Theo dõi hồ sơ của tổ','team',view=='team')+'</section>'
+   es=personal if view=='self' else members
+  rows=[]; submitted=sum(e['status'] not in ('draft','returned') for e in es); approved=sum(e['status']=='approved' for e in es)
   for e in es:
    calc=result(c,e); common=shown_common(e); rows.append([h(e['name']),h(e['dept'] or 'Chưa phân tổ'),h(STATUSES[e['status']]),f"{calc['kpi']:.2f}" if calc['n'] else '—',f'{common+calc["kpi"]:.2f}' if common is not None and calc['n'] else '—',h(e['final_level'] or '—'),f'<a class="btn small" href="/eval/{e["id"]}">Mở hồ sơ</a>'])
-  chooser='<form method="get" class="inline">'+select('Kỳ đánh giá','period',[(x['id'],f'Quý {x["quarter"]}/{x["year"]}'+(' · đã khóa' if x['locked'] else '')) for x in periods],pid)+'<button>Xem</button></form>'
-  body='<section class="panel toolbar">'+chooser+(f'<a class="btn secondary" href="/export/period/{pid}">Xuất tổng hợp Excel</a>' if u['role']!='teacher' else '')+'</section><div class="stats">'+stat('Hồ sơ',len(es))+stat('Đã nộp',submitted)+stat('BGH đã duyệt',approved)+stat('Chưa nộp / trả lại',len(es)-submitted)+'</div><section class="panel"><h2>Danh sách hồ sơ</h2>'+table(['Họ tên','Tổ','Trạng thái','KPI /70','Tổng /100','Xếp loại',''],rows)+'</section>'
-  if can_manage(u) or u['role'] in ('leader','deputy'):
+  chooser='<form method="get" class="inline">'+(f'<input type="hidden" name="view" value="{view}">' if u['role'] in ('leader','deputy') else '')+select('Kỳ đánh giá','period',[(x['id'],f'Quý {x["quarter"]}/{x["year"]}'+(' · đã khóa' if x['locked'] else '')) for x in periods],pid)+'<button>Xem</button></form>'
+  body='<section class="panel toolbar">'+chooser+(f'<a class="btn secondary" href="/export/period/{pid}">Xuất tổng hợp Excel</a>' if u['role']!='teacher' else '')+'</section>'+role_cards+'<div class="stats">'+stat('Hồ sơ',len(es))+stat('Đã nộp',submitted)+stat('BGH đã duyệt',approved)+stat('Chưa nộp / trả lại',len(es)-submitted)+'</div><section class="panel"><h2>Danh sách hồ sơ</h2>'+table(['Họ tên','Tổ','Trạng thái','KPI /70','Tổng /100','Xếp loại',''],rows)+'</section>'
+  if u['role'] in ('leader','deputy') and view=='self' and es:
+   body+=workflow_panel(c,es[0])
+  if u['role']=='teacher' and es:
+   body+=workflow_panel(c,es[0])
+  if can_manage(u) or (u['role'] in ('leader','deputy') and view=='team'):
    grouped={}
    for e in es:
     k=(e['dept'] or 'Chưa phân tổ',e['cohort']);g=grouped.setdefault(k,[0,0,0]);g[0]+=1;g[1]+=e['status']=='approved' and e['final_level']==LEVELS[1];g[2]+=e['status']=='approved' and e['final_level']==LEVELS[0]
@@ -257,6 +272,7 @@ def eval_get(eid:int,r:Request):
   if not u:return redirect('/login')
   if u['must_change']:return redirect('/password')
   e=get_eval(c,u,eid); csrf=s['csrf']; calc=result(c,e); common=shown_common(e); editable=u['id']==e['user'] and not e['locked'] and e['status'] in ('draft','returned');review=not e['locked'] and (team_review(u,e) or (can_manage(u) and u['id']!=e['user'])); body=f'<section class="panel toolbar"><div><h2>{h(e["name"])} · Quý {e["quarter"]}/{e["year"]}</h2><p>{h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])} · {"Đã khóa" if e["locked"] else "Đang mở"}</p></div><a class="btn secondary" href="/export/eval/{eid}">Xuất Excel cá nhân</a></section><div class="stats">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+stat('Vượt yêu cầu',f'{calc["outstanding"]}/{calc["n"]}')+'</div>'
+  body+=workflow_panel(c,e)
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if editable:
    raw=r.query_params.get('axis','1');step=int(raw) if raw in ('1','2','3','4','5','6','7') else 1
