@@ -7,6 +7,7 @@ import axis_self
 import workflow
 import common_criteria as cc
 import personal_exports as pe
+import leader_ui
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -61,13 +62,13 @@ def form(url,csrf,body,button='Lưu',extra=''):
 def layout(title,body,u=None,csrf='',nav=True,compact=False):
  links=''
  if u and nav:
-  links=('' if u['role']=='teacher' else '<a href="/">Tổng quan</a>')+('' if DEMO else '<a href="/password">Đổi mật khẩu</a>')
+  links=('' if u['role']=='teacher' else '<a href="/">Quản lý tổ</a>' if u['role'] in ('leader','deputy') else '<a href="/">Tổng quan</a>')+('' if DEMO else '<a href="/password">Đổi mật khẩu</a>')
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=26"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.6</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=27"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.7</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -151,25 +152,17 @@ def home(r:Request):
    personal=one(c,'SELECT e.id FROM evaluations e JOIN periods p ON p.id=e.period WHERE e.user=? ORDER BY p.locked ASC,p.year DESC,p.quarter DESC LIMIT 1',(u['id'],))
    if personal:return redirect(f'/eval/{personal["id"]}')
    return layout('Hồ sơ cá nhân','<section class="panel">Chưa có hồ sơ đánh giá. Vui lòng liên hệ Ban Giám hiệu.</section>',u,csrf,compact=True)
-  try:pid=int(r.query_params.get('period',periods[0]['id']))
+  default_pid=next((p['id'] for p in periods if not p['locked']),periods[0]['id']) if u['role'] in ('leader','deputy') else periods[0]['id']
+  try:pid=int(r.query_params.get('period',default_pid))
   except ValueError:fail('Kỳ không hợp lệ')
   p=period(c,pid); es=scope_evals(c,u,pid); role_cards=''; view=r.query_params.get('view','team')
-  if u['role'] in ('leader','deputy'):
-   if view not in ('self','team'):view='team'
-   personal=[e for e in es if e['user']==u['id']]
-   members=[e for e in es if e['user']!=u['id']]
-   role_cards='<section class="panel role-cards">'+workflow.dashboard_card(f'/?period={pid}&view=self','ĐÁNH GIÁ CÁ NHÂN','Hồ sơ của bản thân','person',view=='self')+workflow.dashboard_card(f'/?period={pid}&view=team','ĐÁNH GIÁ TỔ VIÊN','Quản lý hồ sơ của tổ' if u['role']=='leader' else 'Theo dõi hồ sơ của tổ','team',view=='team')+'</section>'
-   es=personal if view=='self' else members
+  if u['role'] in ('leader','deputy'):return leader_ui.dashboard(c,u,p,periods,es,csrf,r)
   rows=[]; submitted=sum(e['status'] not in ('draft','returned') for e in es); approved=sum(e['status']=='approved' for e in es)
   for e in es:
    calc=result(c,e); common=shown_common(e); rows.append([h(e['name']),h(e['dept'] or 'Chưa phân tổ'),h(STATUSES[e['status']]),f"{calc['kpi']:.2f}" if calc['n'] else '—',f'{common+calc["kpi"]:.2f}' if common is not None and calc['n'] else '—',h(e['final_level'] or '—'),f'<a class="btn small" href="/eval/{e["id"]}">Mở hồ sơ</a>'])
   chooser='<form method="get" class="inline">'+(f'<input type="hidden" name="view" value="{view}">' if u['role'] in ('leader','deputy') else '')+select('Kỳ đánh giá','period',[(x['id'],f'Quý {x["quarter"]}/{x["year"]}'+(' · đã khóa' if x['locked'] else '')) for x in periods],pid)+'<button>Xem</button></form>'
   body='<section class="panel toolbar">'+chooser+(f'<a class="btn secondary" href="/export/period/{pid}">Xuất tổng hợp Excel</a>' if u['role']!='teacher' else '')+'</section>'+role_cards+'<div class="stats">'+stat('Hồ sơ',len(es))+stat('Đã nộp',submitted)+stat('BGH đã duyệt',approved)+stat('Chưa nộp / trả lại',len(es)-submitted)+'</div><section class="panel"><h2>Danh sách hồ sơ</h2>'+table(['Họ tên','Tổ','Trạng thái','KPI /70','Tổng /100','Xếp loại',''],rows)+'</section>'
-  if u['role'] in ('leader','deputy') and view=='self' and es:
-   body+=workflow_panel(c,es[0])
-  if u['role']=='teacher' and es:
-   body+=workflow_panel(c,es[0])
-  if can_manage(u) or (u['role'] in ('leader','deputy') and view=='team'):
+  if can_manage(u):
    grouped={}
    for e in es:
     k=(e['dept'] or 'Chưa phân tổ',e['cohort']);g=grouped.setdefault(k,[0,0,0]);g[0]+=1;g[1]+=e['status']=='approved' and e['final_level']==LEVELS[1];g[2]+=e['status']=='approved' and e['final_level']==LEVELS[0]
@@ -284,11 +277,20 @@ def eval_get(eid:int,r:Request):
   if u['must_change']:return redirect('/password')
   e=get_eval(c,u,eid); csrf=s['csrf']; calc=result(c,e); common=shown_common(e); editable=u['id']==e['user'] and not e['locked'] and e['status'] in ('draft','returned');review=not e['locked'] and (team_review(u,e) or (can_manage(u) and u['id']!=e['user'])); body=f'<section class="panel toolbar"><div><h2>{h(e["name"])} · Quý {e["quarter"]}/{e["year"]}</h2><p>{h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])} · {"Đã khóa" if e["locked"] else "Đang mở"}</p></div>{pe.export_buttons(eid)}</section><div class="stats">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+stat('Vượt yêu cầu',f'{calc["outstanding"]}/{calc["n"]}')+'</div>'
   personal=u['id']==e['user']
+  leader_view=u['role'] in ('leader','deputy')
+  member_view=leader_view and not personal
+  leader_active=member_view and review and e['status']=='submitted' and team_review(u,e)
   if personal:
    if editable:body='<div class="personal-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Phiếu tự đánh giá">'
    else:body=workflow_panel(c,e)
    if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
+  elif member_view:
+   body=leader_ui.member_header(e,calc,common)
+   if leader_active:body+='<div class="personal-flow-frame team-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Tổ trưởng đánh giá hồ sơ">'
+   else:body+=workflow_panel(c,e)
+   body+=leader_ui.score_panel(c,e,calc)
   else:body+=workflow_panel(c,e)
+  if leader_view:body=leader_ui.tabs_for_eval(c,u,e,'self' if personal else 'team')+body
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if can_manage(u):body+=cc.assignment_panel(c,e,csrf)
   if editable:
@@ -301,10 +303,15 @@ def eval_get(eid:int,r:Request):
   else:
    body+=cc.edit_panel(c,e,csrf,False)
    if editable:body+='<section class="panel"><h2>Điểm tiêu chí chung</h2>'+form(f'/action/common/{eid}',csrf,field('Điểm tự chấm theo biểu mẫu có thẩm quyền','common',e['common'],'number','min="0" max="30" step="0.01" required'),'Lưu điểm')+'</section>'
-   body+='<section class="panel"><h2>Nhiệm vụ được giao</h2><p class="muted">Điểm được tính theo quy tắc kỳ: '+h(e['mode'])+'. Nhiệm vụ chưa hoàn thành áp dụng giới hạn chất lượng/tiến độ thận trọng; xem hướng dẫn sử dụng.</p>'
+   body+='<section class="panel"><h2>'+('PHẦN II. KPI – 70 ĐIỂM' if member_view else 'Nhiệm vụ được giao')+'</h2><p class="muted">Điểm được tính theo quy tắc kỳ: '+h(e['mode'])+'. Nhiệm vụ chưa hoàn thành áp dụng giới hạn chất lượng/tiến độ thận trọng; xem hướng dẫn sử dụng.</p>'
+   last_axis=None
    if not calc['rows']:body+='<p>Chưa có nhiệm vụ được giao. Liên hệ tổ trưởng hoặc BGH.</p>'
    for t,z in calc['rows']:
-    tid=t['id']; attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,)); body+=f'<details class="task" open><summary><b>{h(t["title"])}</b><span>Trục {t["axis"]} · Nhóm {t["grp"]} · {z["actual"]:.2f}/{z["base"]:.0f} điểm</span></summary><p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(t["effective_due"] or t["due"])}</p>'
+    if member_view and t['axis']!=last_axis:
+     if last_axis is not None:body+='</div></details>'
+     last_axis=t['axis'];axis_tasks=[(a,b) for a,b in calc['rows'] if a['axis']==last_axis]
+     body+=f'<details class="team-axis"><summary><b>TRỤC {last_axis} · {h(axis_self.AXES[last_axis][0])}</b><span>{len(axis_tasks)} công việc · {sum(b["kpi"] for a,b in axis_tasks):.2f}/{sum(b["max"] for a,b in axis_tasks):.2f} điểm</span></summary><div class="team-axis-content">'
+    tid=t['id']; attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,)); body+=f'<details class="task"'+('' if member_view else ' open')+f'><summary><b>{h(t["title"])}</b><span>Trục {t["axis"]} · Nhóm {t["grp"]} · {z["actual"]:.2f}/{z["base"]:.0f} điểm</span></summary><p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(t["effective_due"] or t["due"])}</p>'
     if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
     else:
      if editable:body+=form(f'/action/task/{tid}',csrf,'<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note']),'Lưu kết quả nhiệm vụ')+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data"')
@@ -314,19 +321,22 @@ def eval_get(eid:int,r:Request):
     if review and e['status'] in ('draft','returned'):
      body+='<details><summary>Điều chỉnh hợp lệ (người quản lý)</summary>'+form(f'/action/adjust/{tid}',csrf,field('Hạn điều chỉnh (nếu có)','effective_due',t['effective_due'],'date')+field('Căn cứ điều chỉnh hạn','extension_reason',t['extension_reason'])+field('Số ngày chậm chủ quan được xác nhận (để trống: tự tính)','late_override',t['late_override'],'number','min="0" max="1000000"')+field('Căn cứ điều chỉnh ngày chậm','late_reason',t['late_reason'])+check('Dừng nhiệm vụ hợp lệ','cancelled',t['cancelled'])+field('Căn cứ dừng','cancel_reason',t['cancel_reason']),'Lưu điều chỉnh')+'</details>'
     body+='</details>'
+   if member_view and last_axis is not None:body+='</div></details>'
    body+='</section>'
    if editable:body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'. Phải có căn cứ giao nhiệm vụ, minh chứng và điểm tiêu chí chung.</p>'+form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')+'</section>'
   if review and e['status'] in ('submitted','team'):
-   body+='<section class="panel"><h2>Rà soát hồ sơ</h2><p>Điểm tự chấm: '+h(e['common'])+' · Đề xuất: '+h(e['self_level'])+'</p>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')
-   if team_review(u,e) and e['status']=='submitted':body+=form(f'/action/team/{eid}',csrf,field('Điểm tiêu chí chung sau rà soát','common',e['common'],'number','min="0" max="30" step="0.01" required')+textarea('Nhận xét của tổ trưởng','note',attrs='required'),'Tổ xác nhận')
+   body+='<section class="panel'+(' team-review-panel' if member_view else '')+'"><h2>'+('NHẬN XÉT VÀ ĐÁNH GIÁ CỦA TỔ TRƯỞNG' if member_view else 'Rà soát hồ sơ')+'</h2><p>Điểm tự chấm tiêu chí chung: '+h(e['common'])+' /30 · Đề xuất: '+h(e['self_level'])+'</p>'
+   if not member_view:body+=form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')
+   if team_review(u,e) and e['status']=='submitted':body+=form(f'/action/team/{eid}',csrf,field('Điểm tiêu chí chung sau rà soát (tối đa 30)','common',e['common'],'number','min="0" max="30" step="0.01" required')+textarea('Nhận xét của tổ trưởng','note',attrs='required'),'Xác nhận và chuyển BGH')
+   if member_view:body+='<details class="team-return"><summary>Trả lại hồ sơ để bổ sung</summary>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')+'</details>'
    if can_manage(u):
     good,xs=group_quota(c,e);body+=f'<p>Nhóm tương đồng: HTT đã duyệt {good} · HTXS đã duyệt {xs} · tối đa {quota(good)}.</p>'+form(f'/action/approve/{eid}',csrf,field('Điểm tiêu chí chung xác nhận','common',common,'number','min="0" max="30" step="0.01" required')+select('Xếp loại chính thức','level',[(x,x) for x in LEVELS],suggestion(calc,common))+textarea('Nhận xét / căn cứ lựa chọn','note',attrs='required')+check('Đã kiểm tra điều kiện, minh chứng, thẩm quyền và tỷ lệ','confirmed'),'BGH duyệt')
    body+='</section>'
   if can_manage(u) and u['id']!=e['user'] and not e['locked'] and e['status']=='approved':body+='<section class="panel">'+form(f'/action/reopen/{eid}',csrf,textarea('Lý do mở lại hồ sơ','note',attrs='required'),'Mở lại hồ sơ')+'</section>'
   if e['self_snapshot']:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
-  if editable:body+='</div></div>'
-  hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal else '</section>')
-  return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal)
+  if editable or leader_active:body+='</div></div>'
+  hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal or member_view else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal or member_view else '</section>')
+  return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal or leader_view)
 @app.post('/password')
 @app.post('/logout')
 @app.post('/action/{action}')
