@@ -69,7 +69,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=28"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.8</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=29"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.9</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -286,7 +286,7 @@ def eval_get(eid:int,r:Request):
    else:body=workflow_panel(c,e)
    if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
   elif member_view:
-   body=leader_ui.member_header(e,calc,common)
+   body=leader_ui.member_header(u,e,calc,common)
    if leader_active:body+='<div class="personal-flow-frame team-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Tổ trưởng đánh giá hồ sơ">'
    else:body+=workflow_panel(c,e)
    body+=leader_ui.score_panel(c,e,calc)
@@ -332,8 +332,8 @@ def eval_get(eid:int,r:Request):
   if review and e['status'] in ('submitted','team'):
    body+='<section class="panel'+(' team-review-panel' if member_view else '')+'"><h2>'+('NHẬN XÉT VÀ ĐÁNH GIÁ CỦA TỔ TRƯỞNG' if member_view else 'Rà soát hồ sơ')+'</h2><p>Điểm tự chấm tiêu chí chung: '+h(e['common'])+' /30 · Đề xuất: '+h(e['self_level'])+'</p>'
    if not member_view:body+=form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')
-   if team_review(u,e) and e['status']=='submitted':body+=form(f'/action/team/{eid}',csrf,field('Điểm tiêu chí chung sau rà soát (tối đa 30)','common',e['common'],'number','min="0" max="30" step="0.01" required')+textarea('Nhận xét của tổ trưởng','note',attrs='required'),'Xác nhận và chuyển BGH')
-   if member_view:body+='<details class="team-return"><summary>Trả lại hồ sơ để bổ sung</summary>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')+'</details>'
+   if team_review(u,e) and e['status']=='submitted':body+='<div id="team-approve" class="team-action-target">'+form(f'/action/team/{eid}',csrf,field('Điểm tiêu chí chung sau rà soát (tối đa 30)','common',e['common'],'number','min="0" max="30" step="0.01" required')+textarea('Nhận xét của tổ trưởng','note',attrs='required'),'Duyệt hồ sơ – Xác nhận và chuyển BGH')+'</div>'
+   if member_view:body+='<details id="team-return" class="team-return team-action-target"'+(' open' if r.query_params.get('review')=='return' else '')+'><summary>Trả lại hồ sơ để bổ sung</summary>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại hồ sơ')+'</details>'
    if can_manage(u):
     good,xs=group_quota(c,e);body+=f'<p>Nhóm tương đồng: HTT đã duyệt {good} · HTXS đã duyệt {xs} · tối đa {quota(good)}.</p>'+form(f'/action/approve/{eid}',csrf,field('Điểm tiêu chí chung xác nhận','common',common,'number','min="0" max="30" step="0.01" required')+select('Xếp loại chính thức','level',[(x,x) for x in LEVELS],suggestion(calc,common))+textarea('Nhận xét / căn cứ lựa chọn','note',attrs='required')+check('Đã kiểm tra điều kiện, minh chứng, thẩm quyền và tỷ lệ','confirmed'),'BGH duyệt')
    body+='</section>'
