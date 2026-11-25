@@ -8,6 +8,7 @@ import workflow
 import common_criteria as cc
 import personal_exports as pe
 import leader_ui
+import excel_preview
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -68,7 +69,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=27"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.7</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=28"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.8</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -301,7 +302,10 @@ def eval_get(eid:int,r:Request):
    if part=='common':body+=cc.edit_panel(c,e,csrf,True)+f'<a class="btn" href="/eval/{eid}?axis=1">Chuyển sang phần KPI →</a>'
    else:body+=axis_editor(c,e,calc,csrf,step,r.query_params.get('add')=='1')
   else:
-   body+=cc.edit_panel(c,e,csrf,False)
+   if member_view:
+    body+=excel_preview.preview(c,e,calc)
+    body+='<details class="panel team-detail-tools"><summary>Minh chứng đính kèm và chi tiết nhiệm vụ</summary>'
+   else:body+=cc.edit_panel(c,e,csrf,False)
    if editable:body+='<section class="panel"><h2>Điểm tiêu chí chung</h2>'+form(f'/action/common/{eid}',csrf,field('Điểm tự chấm theo biểu mẫu có thẩm quyền','common',e['common'],'number','min="0" max="30" step="0.01" required'),'Lưu điểm')+'</section>'
    body+='<section class="panel"><h2>'+('PHẦN II. KPI – 70 ĐIỂM' if member_view else 'Nhiệm vụ được giao')+'</h2><p class="muted">Điểm được tính theo quy tắc kỳ: '+h(e['mode'])+'. Nhiệm vụ chưa hoàn thành áp dụng giới hạn chất lượng/tiến độ thận trọng; xem hướng dẫn sử dụng.</p>'
    last_axis=None
@@ -323,6 +327,7 @@ def eval_get(eid:int,r:Request):
     body+='</details>'
    if member_view and last_axis is not None:body+='</div></details>'
    body+='</section>'
+   if member_view:body+='</details>'
    if editable:body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'. Phải có căn cứ giao nhiệm vụ, minh chứng và điểm tiêu chí chung.</p>'+form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')+'</section>'
   if review and e['status'] in ('submitted','team'):
    body+='<section class="panel'+(' team-review-panel' if member_view else '')+'"><h2>'+('NHẬN XÉT VÀ ĐÁNH GIÁ CỦA TỔ TRƯỞNG' if member_view else 'Rà soát hồ sơ')+'</h2><p>Điểm tự chấm tiêu chí chung: '+h(e['common'])+' /30 · Đề xuất: '+h(e['self_level'])+'</p>'
