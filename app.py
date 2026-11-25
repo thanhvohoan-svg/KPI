@@ -67,7 +67,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=24"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.5</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=26"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.6</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -95,9 +95,9 @@ def own_edit(u,e):
  if u['id']!=e['user'] or e['status'] not in ('draft','returned'):fail('Hồ sơ không thể chỉnh sửa.',403)
 def result(c,e):
  t=allrows(c,'SELECT * FROM tasks WHERE evaluation=? ORDER BY axis,id',(e['id'],)); hol=[r['day'] for r in allrows(c,'SELECT day FROM holidays WHERE period=?',(e['period'],))]; return calculate(t,e['mode'],hol,end_of_quarter(e['year'],e['quarter']).isoformat())
-def workflow_panel(c,e):
+def workflow_panel(c,e,connected=False):
  has_team=e['department'] is not None and one(c,"SELECT id FROM users WHERE active=1 AND role='leader' AND department=? AND id<>? LIMIT 1",(e['department'],e['user'])) is not None
- return workflow.render(e['status'],has_team,e['team_common'] is not None,bool(e['locked']))
+ return workflow.render(e['status'],has_team,e['team_common'] is not None,bool(e['locked']),connected)
 def shown_common(e):return e['final_common'] if e['final_common'] is not None else e['team_common'] if e['team_common'] is not None else e['common']
 def group_quota(c,e):
  q=one(c,'SELECT SUM(final_level=?) good,SUM(final_level=?) xs FROM evaluations WHERE period=? AND department IS ? AND cohort=? AND status="approved" AND id<>?',(LEVELS[1],LEVELS[0],e['period'],e['department'],e['cohort'],e['id'])); return int(q['good'] or 0),int(q['xs'] or 0)
@@ -285,7 +285,8 @@ def eval_get(eid:int,r:Request):
   e=get_eval(c,u,eid); csrf=s['csrf']; calc=result(c,e); common=shown_common(e); editable=u['id']==e['user'] and not e['locked'] and e['status'] in ('draft','returned');review=not e['locked'] and (team_review(u,e) or (can_manage(u) and u['id']!=e['user'])); body=f'<section class="panel toolbar"><div><h2>{h(e["name"])} · Quý {e["quarter"]}/{e["year"]}</h2><p>{h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])} · {"Đã khóa" if e["locked"] else "Đang mở"}</p></div>{pe.export_buttons(eid)}</section><div class="stats">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+stat('Vượt yêu cầu',f'{calc["outstanding"]}/{calc["n"]}')+'</div>'
   personal=u['id']==e['user']
   if personal:
-   body=workflow_panel(c,e)
+   if editable:body='<div class="personal-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Phiếu tự đánh giá">'
+   else:body=workflow_panel(c,e)
    if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
   else:body+=workflow_panel(c,e)
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
@@ -323,6 +324,7 @@ def eval_get(eid:int,r:Request):
    body+='</section>'
   if can_manage(u) and u['id']!=e['user'] and not e['locked'] and e['status']=='approved':body+='<section class="panel">'+form(f'/action/reopen/{eid}',csrf,textarea('Lý do mở lại hồ sơ','note',attrs='required'),'Mở lại hồ sơ')+'</section>'
   if e['self_snapshot']:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
+  if editable:body+='</div></div>'
   hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal else '</section>')
   return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal)
 @app.post('/password')
