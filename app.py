@@ -152,7 +152,8 @@ def home(r:Request):
    personal=one(c,'SELECT e.id FROM evaluations e JOIN periods p ON p.id=e.period WHERE e.user=? ORDER BY p.locked ASC,p.year DESC,p.quarter DESC LIMIT 1',(u['id'],))
    if personal:return redirect(f'/eval/{personal["id"]}')
    return layout('Hồ sơ cá nhân','<section class="panel">Chưa có hồ sơ đánh giá. Vui lòng liên hệ Ban Giám hiệu.</section>',u,csrf,compact=True)
-  try:pid=int(r.query_params.get('period',next((p['id'] for p in periods if not p['locked']),periods[0]['id'])))
+  default_pid=next((p['id'] for p in periods if not p['locked']),periods[0]['id']) if u['role'] in ('leader','deputy') else periods[0]['id']
+  try:pid=int(r.query_params.get('period',default_pid))
   except ValueError:fail('Kỳ không hợp lệ')
   p=period(c,pid); es=scope_evals(c,u,pid); role_cards=''; view=r.query_params.get('view','team')
   if u['role'] in ('leader','deputy'):return leader_ui.dashboard(c,u,p,periods,es,csrf,r)
@@ -287,7 +288,7 @@ def eval_get(eid:int,r:Request):
    body=leader_ui.member_header(e,calc,common)
    if leader_active:body+='<div class="personal-flow-frame team-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Tổ trưởng đánh giá hồ sơ">'
    else:body+=workflow_panel(c,e)
-   body+=leader_ui.score_panel(e,calc)
+   body+=leader_ui.score_panel(c,e,calc)
   else:body+=workflow_panel(c,e)
   if leader_view:body=leader_ui.tabs_for_eval(c,u,e,'self' if personal else 'team')+body
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
