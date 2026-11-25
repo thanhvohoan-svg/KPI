@@ -46,6 +46,27 @@ class DemoTest(unittest.TestCase):
   self.logout(c);self.login(c,'giaovien');self.assertIn('BGH đã duyệt',c.get('/eval/1').text)
   self.assertIn('Bản nháp',other.get('/eval/1').text)
   self.post(c,'/password',{'old':PASS,'new':'NewPassword!123','confirm':'NewPassword!123'},'/',403)
+ def test_workflow_and_leader_views(self):
+  from workflow import states,render
+  self.assertEqual(states('draft'),['current','pending','pending','pending'])
+  self.assertEqual(states('submitted',False),['done','skip','current','pending'])
+  self.assertEqual(states('team'),['done','done','current','pending'])
+  self.assertEqual(states('approved',True,False),['done','skip','done','done'])
+  self.assertEqual(states('returned')[0],'returned')
+  self.assertEqual(render('draft').count('class="workflow-arrow"'),3)
+  c=self.client();self.login(c,'totruong')
+  personal=c.get('/?period=1&view=self')
+  self.assertEqual(personal.status_code,200)
+  self.assertIn('ĐÁNH GIÁ CÁ NHÂN',personal.text)
+  self.assertIn('ĐÁNH GIÁ TỔ VIÊN',personal.text)
+  self.assertIn('href="/eval/2"',personal.text)
+  self.assertNotIn('href="/eval/1"',personal.text)
+  team=c.get('/?period=1&view=team')
+  self.assertIn('href="/eval/1"',team.text)
+  self.assertNotIn('href="/eval/2"',team.text)
+  self.assertNotIn('href="/eval/5"',team.text)
+  self.assertIn('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ',c.get('/eval/2').text)
+  self.assertIn('workflow-step current',c.get('/eval/1').text)
  def test_sequential_work_cards(self):
   c=self.client();self.login(c,'giaovien')
   base={'source':'KH thử','product':'Sản phẩm thử','grp':'1','qty':'1','due':'2026-09-30','done':'1','corrections':'0','finish':'2026-09-30','evidence':'Minh chứng mẫu'}
