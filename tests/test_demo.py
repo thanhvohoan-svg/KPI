@@ -71,7 +71,9 @@ class DemoTest(unittest.TestCase):
   self.assertNotIn('Mở hồ sơ',page)
   self.assertNotIn('<h1>Tổng quan</h1>',page)
   self.assertNotIn('name="period"',page)
-  self.assertLess(page.index('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ'),page.index('BƯỚC 1. CÁ NHÂN TỰ ĐÁNH GIÁ'))
+  self.assertNotIn('class="panel personal-step-heading"',page)
+  self.assertNotIn('BƯỚC 1. CÁ NHÂN TỰ ĐÁNH GIÁ',page)
+  self.assertLess(page.index('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ'),page.index('PHẦN I. TIÊU CHÍ CHUNG'))
   self.assertIn('PHẦN I. TIÊU CHÍ CHUNG',page)
   summary=c.get('/eval/1?axis=7').text
   self.assertIn('XUẤT EXCEL HỒ SƠ ĐÁNH GIÁ',summary)
