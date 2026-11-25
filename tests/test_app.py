@@ -5,6 +5,18 @@ from app import app
 from core import *
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+def common_data(c,eid,target):
+ from common_criteria import DEFAULT,leaves
+ import re
+ page=c.get(f'/eval/{eid}?part=common').text
+ m=re.search(r'name="template_token" value="([^"]+)"',page)
+ assert m is not None
+ rows=leaves(DEFAULT['3']);data={'template_token':m.group(1)}
+ remaining=30-target
+ for key,_,maximum in rows:
+  reduction=min(remaining,maximum);remaining-=reduction;data['score_'+key]=str(maximum-reduction)
+ return data
+
 class AppTests(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
@@ -37,7 +49,7 @@ class AppTests(unittest.TestCase):
   upload=a.post(f'/action/upload/{tid}',data={'csrf':self.token(a,f'/eval/{eid}')},files={'file':('test.txt',b'check','text/plain')},follow_redirects=False);self.assertEqual(upload.status_code,303)
   with closing(connect()) as c, c:aid=c.execute('SELECT id FROM attachments').fetchone()[0]
   self.assertEqual(b.get(f'/attachment/{aid}').status_code,403);self.assertEqual(a.get(f'/attachment/{aid}').content,b'check')
-  self.post(a,f'/action/common/{eid}',{'common':'28'},f'/eval/{eid}');self.post(a,f'/action/submit/{eid}',{'confirmed':'1'},f'/eval/{eid}')
+  self.post(a,f'/action/common_detail/{eid}',common_data(a,eid,28),f'/eval/{eid}');self.post(a,f'/action/submit/{eid}',{'confirmed':'1'},f'/eval/{eid}')
   self.post(a,f'/action/common/{eid}',{'common':'30'},f'/eval/{eid}',403)
   self.post(admin,f'/action/approve/{eid}',{'common':'28','level':LEVELS[1],'note':'Duyệt','confirmed':'1'},f'/eval/{eid}',400)
   self.post(leader,f'/action/team/{eid}',{'common':'27','note':'Đã kiểm tra'},f'/eval/{eid}')
@@ -46,5 +58,5 @@ class AppTests(unittest.TestCase):
   r=a.get(f'/export/eval/{eid}');self.assertEqual(r.status_code,200);w=load_workbook(io.BytesIO(r.content),data_only=True);sh=w.active;self.assertEqual(sh['R7'].value,70);self.assertEqual(sh['R8'].value,70);self.assertEqual(sh['H7'].value,100)
   r=leader.get(f'/export/period/{p}');self.assertEqual(r.status_code,200);w=load_workbook(io.BytesIO(r.content),data_only=True);self.assertEqual(len(w.sheetnames),3);self.assertNotIn('Giáo viên B',[x.value for row in w.worksheets[0] for x in row]);self.assertEqual(a.get(f'/export/period/{p}').status_code,403)
   self.post(admin,f'/action/lock/{p}',{'confirmed':'1'},f'/period/{p}',400)
-  self.post(admin,f'/action/reopen/{eid}',{'note':'Kiểm tra lại'},f'/eval/{eid}');self.post(a,f'/action/common/{eid}',{'common':'28'},f'/eval/{eid}')
+  self.post(admin,f'/action/reopen/{eid}',{'note':'Kiểm tra lại'},f'/eval/{eid}');self.post(a,f'/action/common_detail/{eid}',common_data(a,eid,28),f'/eval/{eid}')
 if __name__=='__main__':unittest.main(verbosity=2)
