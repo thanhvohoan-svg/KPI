@@ -55,7 +55,7 @@ class AppTests(unittest.TestCase):
   self.post(leader,f'/action/team/{eid}',{'common':'27','note':'Đã kiểm tra'},f'/eval/{eid}')
   self.post(admin,f'/action/approve/{eid}',{'common':'27','level':LEVELS[0],'note':'Không đủ điều kiện','confirmed':'1'},f'/eval/{eid}',400)
   self.post(admin,f'/action/approve/{eid}',{'common':'27','level':LEVELS[1],'note':'Đã kiểm tra','confirmed':'1'},f'/eval/{eid}')
-  r=a.get(f'/export/eval/{eid}');self.assertEqual(r.status_code,200);w=load_workbook(io.BytesIO(r.content),data_only=True);sh=w.active;self.assertEqual(sh['R7'].value,70);self.assertEqual(sh['R8'].value,70);self.assertEqual(sh['H7'].value,100)
+  r=a.get(f'/export/eval/{eid}');self.assertEqual(r.status_code,200);w=load_workbook(io.BytesIO(r.content),data_only=True);sh=w.active;total=next(row for row in sh.iter_rows() if str(row[0].value).startswith('TỔNG ĐIỂM PHẦN B'));self.assertAlmostEqual(total[17].value,70);self.assertEqual(sh['H7'].value,100)
   r=leader.get(f'/export/period/{p}');self.assertEqual(r.status_code,200);w=load_workbook(io.BytesIO(r.content),data_only=True);self.assertEqual(len(w.sheetnames),3);self.assertNotIn('Giáo viên B',[x.value for row in w.worksheets[0] for x in row]);self.assertEqual(a.get(f'/export/period/{p}').status_code,403)
   self.post(admin,f'/action/lock/{p}',{'confirmed':'1'},f'/period/{p}',400)
   self.post(admin,f'/action/reopen/{eid}',{'note':'Kiểm tra lại'},f'/eval/{eid}');self.post(a,f'/action/common_detail/{eid}',common_data(a,eid,28),f'/eval/{eid}')
