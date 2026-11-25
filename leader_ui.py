@@ -9,6 +9,7 @@ LABELS={
  'team':'Đã chuyển BGH','approved':'BGH đã duyệt','returned':'Trả lại bổ sung'
 }
 ORDER={'submitted':0,'returned':1,'draft':2,'team':3,'approved':4}
+SHORT={'submitted':'Chờ đánh giá','draft':'Chưa nộp','returned':'Trả lại','team':'Đã chuyển BGH','approved':'BGH đã duyệt'}
 
 def url(pid,view='team',status='all',q=''):
  args={'period':pid,'view':view}
@@ -45,8 +46,8 @@ def dashboard(c,u,p,periods,es,csrf,r):
  body+='<section class="panel team-toolbar"><div><h2>'+h(dep['name'] if dep else 'Chưa phân tổ')+'</h2><p class="muted">Quý '+str(p['quarter'])+'/'+str(p['year'])+(' · Đã khóa kỳ' if p['locked'] else '')+' · '+str(len(members))+' tổ viên</p></div>'
  body+='<form method="get" class="inline"><input type="hidden" name="view" value="team">'+select('Kỳ đánh giá','period',[(x['id'],f'Quý {x["quarter"]}/{x["year"]}'+(' · đã khóa' if x['locked'] else '')) for x in periods],pid)+'<button>Xem</button></form><a class="btn secondary" href="/export/period/'+str(pid)+'">Xuất tổng hợp Excel</a></section>'
  body+='<div class="team-filters" aria-label="Lọc hồ sơ">'
- for key,label,n in [('all','Tất cả',len(members))]+[(k,LABELS[k],counts[k]) for k in ('submitted','draft','returned','team','approved')]:
-  body+='<a class="team-filter '+key+(' active' if key==status else '')+'" href="'+h(url(pid,status=key,q=q))+'"'+(' aria-current="page"' if key==status else '')+'><strong>'+str(n)+'</strong><span>'+h(label)+'</span></a>'
+ for key,label,n in [('all','Tất cả',len(members))]+[(k,SHORT[k],counts[k]) for k in ('submitted','draft','returned','team','approved')]:
+  body+='<a class="team-filter '+key+(' active' if key==status else '')+'" href="'+h(url(pid,status=key,q=q))+'"'+(' aria-current="page"' if key==status else '')+'><span>'+h(label)+':</span><strong>'+str(n)+'</strong></a>'
  body+='</div><section class="panel team-list"><div class="team-list-top"><h2>DANH SÁCH TỔ VIÊN</h2><form method="get" class="team-search"><input type="hidden" name="period" value="'+str(pid)+'"><input type="hidden" name="view" value="team"><input type="hidden" name="status" value="'+h(status)+'"><input type="search" name="q" aria-label="Tìm giáo viên" placeholder="Tìm họ tên hoặc mã giáo viên" value="'+h(q)+'"><button>Tìm</button>'
  if q:body+='<a class="btn secondary" href="'+h(url(pid,status=status))+'">Xóa lọc</a>'
  body+='</form></div>'
@@ -55,9 +56,15 @@ def dashboard(c,u,p,periods,es,csrf,r):
   if status!='all' and e['status']!=status:continue
   if q and normalize(q) not in normalize(e['name']+' '+e['code']):continue
   z=result(c,e);common=shown_common(e) if cc.read(c,e) or e['status'] not in ('draft','returned') else None
-  action='Đánh giá' if e['status']=='submitted' and u['role']=='leader' and not p['locked'] else 'Xem hồ sơ'
-  rows.append([h(e['name']),badge(e['status']),f'{common:.2f}' if common is not None else '—',f'{z["kpi"]:.2f}' if z['n'] else '—',f'{common+z["kpi"]:.2f}' if common is not None and z['n'] else '—',h(e['final_level'] or e['self_level'] or '—'),f'<a class="btn small" href="/eval/{e["id"]}">'+action+'</a>'])
- if rows:body+=table(['Họ và tên','Trạng thái','Chung /30','KPI /70','Tổng /100','Xếp loại',''],rows)
+  own=e['common'] if cc.read(c,e) or e['status'] not in ('draft','returned') else None
+  href='/eval/'+str(e['id'])
+  def fmt(v):return f'{v:.2f}' if v is not None else '—'
+  common_cell='<strong>'+fmt(own)+'</strong>'
+  if e['team_common'] is not None:common_cell+='<small class="team-score-stage">Tổ: '+fmt(e['team_common'])+'</small>'
+  if e['final_common'] is not None:common_cell+='<small class="team-score-stage">BGH: '+fmt(e['final_common'])+'</small>'
+  kpi=z['kpi'] if z['n'] else None
+  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',badge(e['status']),common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['final_level'] or e['self_level'] or '—'),f'<a class="btn small" href="{href}">Xem hồ sơ</a>'])
+ if rows:body+=table(['Họ và tên','Trạng thái','Tiêu chí chung /30','KPI /70','Tổng /100','Xếp loại',''],rows)
  else:body+='<p class="team-empty">Không có hồ sơ phù hợp.</p>'
  body+='<p class="muted team-list-count">Hiển thị '+str(len(rows))+'/'+str(len(members))+' tổ viên. Hồ sơ chờ đánh giá được ưu tiên ở đầu.</p></section>'
  return layout('Đánh giá tổ viên',body+'</div></div>',u,csrf,compact=True)
