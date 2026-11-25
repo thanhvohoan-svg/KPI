@@ -69,7 +69,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=29"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.9</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=210"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.10</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -81,9 +81,9 @@ def can_manage(u):return u['role'] in ('admin','manager')
 def assert_manage(u):
  if not can_manage(u):fail('Không có quyền quản trị.',403)
 def viewable(u,e):return u['id']==e['user'] or can_manage(u) or (u['role'] in ('leader','deputy') and u['department'] is not None and u['department']==e['department'])
-def team_review(u,e):return u['id']!=e['user'] and u['role']=='leader' and u['department'] is not None and u['department']==e['department']
+def team_review(u,e):return u['id']!=e['user'] and u['role']=='leader' and u['department'] is not None and u['department']==e['department'] and ('owner_role' not in e.keys() or e['owner_role']!='leader')
 def get_eval(c,u,eid):
- e=one(c,'''SELECT e.*,p.year,p.quarter,p.mode,p.locked,u.name,u.code,u.subject,d.name dept FROM evaluations e JOIN periods p ON p.id=e.period JOIN users u ON u.id=e.user LEFT JOIN departments d ON d.id=e.department WHERE e.id=?''',(eid,))
+ e=one(c,'''SELECT e.*,p.year,p.quarter,p.mode,p.locked,u.name,u.code,u.subject,u.role owner_role,d.name dept FROM evaluations e JOIN periods p ON p.id=e.period JOIN users u ON u.id=e.user LEFT JOIN departments d ON d.id=e.department WHERE e.id=?''',(eid,))
  if not e or not viewable(u,e):fail('Không có quyền xem hồ sơ.',403)
  return e
 def period(c,pid):
@@ -97,14 +97,16 @@ def own_edit(u,e):
  if u['id']!=e['user'] or e['status'] not in ('draft','returned'):fail('Hồ sơ không thể chỉnh sửa.',403)
 def result(c,e):
  t=allrows(c,'SELECT * FROM tasks WHERE evaluation=? ORDER BY axis,id',(e['id'],)); hol=[r['day'] for r in allrows(c,'SELECT day FROM holidays WHERE period=?',(e['period'],))]; return calculate(t,e['mode'],hol,end_of_quarter(e['year'],e['quarter']).isoformat())
-def workflow_panel(c,e,connected=False):
- has_team=e['department'] is not None and one(c,"SELECT id FROM users WHERE active=1 AND role='leader' AND department=? AND id<>? LIMIT 1",(e['department'],e['user'])) is not None
- return workflow.render(e['status'],has_team,e['team_common'] is not None,bool(e['locked']),connected)
+def workflow_panel(c,e,connected=False,heading='QUY TRÌNH LUÂN CHUYỂN HỒ SƠ'):
+ owner=one(c,'SELECT role FROM users WHERE id=?',(e['user'],))
+ omit_team=owner is not None and owner['role']=='leader'
+ has_team=not omit_team and e['department'] is not None and one(c,"SELECT id FROM users WHERE active=1 AND role='leader' AND department=? AND id<>? LIMIT 1",(e['department'],e['user'])) is not None
+ return workflow.render(e['status'],has_team,e['team_common'] is not None,bool(e['locked']),connected,omit_team,heading)
 def shown_common(e):return e['final_common'] if e['final_common'] is not None else e['team_common'] if e['team_common'] is not None else e['common']
 def group_quota(c,e):
  q=one(c,'SELECT SUM(final_level=?) good,SUM(final_level=?) xs FROM evaluations WHERE period=? AND department IS ? AND cohort=? AND status="approved" AND id<>?',(LEVELS[1],LEVELS[0],e['period'],e['department'],e['cohort'],e['id'])); return int(q['good'] or 0),int(q['xs'] or 0)
 def scope_evals(c,u,pid):
- sql='SELECT e.*,u.name,u.code,d.name dept,p.year,p.quarter,p.mode,p.locked FROM evaluations e JOIN users u ON u.id=e.user JOIN periods p ON p.id=e.period LEFT JOIN departments d ON d.id=e.department WHERE e.period=?'; args=[pid]
+ sql='SELECT e.*,u.name,u.code,u.role owner_role,d.name dept,p.year,p.quarter,p.mode,p.locked FROM evaluations e JOIN users u ON u.id=e.user JOIN periods p ON p.id=e.period LEFT JOIN departments d ON d.id=e.department WHERE e.period=?'; args=[pid]
  if not can_manage(u):
   if u['role'] in ('leader','deputy') and u['department'] is not None:sql+=' AND (e.department=? OR e.user=?)';args.extend([u['department'],u['id']])
   else:sql+=' AND e.user=?';args.append(u['id'])
@@ -284,6 +286,7 @@ def eval_get(eid:int,r:Request):
   if personal:
    if editable:body='<div class="personal-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Phiếu tự đánh giá">'
    else:body=workflow_panel(c,e)
+   if leader_view:body+=leader_ui.tabs_for_eval(c,u,e,'self')
    if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
   elif member_view:
    body=leader_ui.member_header(u,e,calc,common)
@@ -291,7 +294,7 @@ def eval_get(eid:int,r:Request):
    else:body+=workflow_panel(c,e)
    body+=leader_ui.score_panel(c,e,calc)
   else:body+=workflow_panel(c,e)
-  if leader_view:body=leader_ui.tabs_for_eval(c,u,e,'self' if personal else 'team')+body
+  if member_view:body=leader_ui.personal_process(c,u,e['period'])+leader_ui.tabs_for_eval(c,u,e,'team')+body
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if can_manage(u):body+=cc.assignment_panel(c,e,csrf)
   if editable:

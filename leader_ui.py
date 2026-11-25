@@ -25,6 +25,13 @@ def tabs_for_eval(c,u,e,active):
  own=c.execute('SELECT id FROM evaluations WHERE period=? AND user=?',(e['period'],u['id'])).fetchone()
  return tabs(e['period'],own['id'] if own else None,active)
 
+def personal_process(c,u,pid,own=None):
+ from app import workflow_panel,one
+ if own is None:
+  own=one(c,'SELECT e.*,p.locked FROM evaluations e JOIN periods p ON p.id=e.period WHERE e.period=? AND e.user=?',(pid,u['id']))
+ if own is None:return '<section class="panel"><h2>QUY TRÌNH LUÂN CHUYỂN HỒ SƠ CÁ NHÂN</h2><p>Chưa có hồ sơ cá nhân trong kỳ này.</p></section>'
+ return workflow_panel(c,own,heading='QUY TRÌNH LUÂN CHUYỂN HỒ SƠ CÁ NHÂN')
+
 def badge(status):
  from app import h
  return '<span class="team-status '+h(status)+'">'+h(LABELS.get(status,status))+'</span>'
@@ -44,7 +51,7 @@ def dashboard(c,u,p,periods,es,csrf,r):
  view=r.query_params.get('view','team')
  if view=='self' and own:return redirect('/eval/'+str(own['id']))
  active='self' if view=='self' else 'team'
- body='<div class="leader-frame">'+tabs(pid,own['id'] if own else None,active)+'<div class="leader-content">'
+ body=personal_process(c,u,pid,own)+'<div class="leader-frame">'+tabs(pid,own['id'] if own else None,active)+'<div class="leader-content">'
  if view=='self':
   body+='<section class="panel">Chưa có hồ sơ cá nhân trong kỳ này. Vui lòng liên hệ Ban Giám hiệu.</section>'
   return layout('Đánh giá cá nhân',body+'</div></div>',u,csrf,compact=True)
