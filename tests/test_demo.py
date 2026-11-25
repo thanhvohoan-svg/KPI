@@ -59,6 +59,23 @@ class DemoTest(unittest.TestCase):
   self.logout(c);self.login(c,'giaovien');self.assertIn('BGH đã duyệt',c.get('/eval/1').text)
   self.assertIn('Bản nháp',other.get('/eval/1').text)
   self.post(c,'/password',{'old':PASS,'new':'NewPassword!123','confirm':'NewPassword!123'},'/',403)
+ def test_compact_teacher_home(self):
+  c=self.client();self.login(c,'giaovien')
+  landing=c.get('/',follow_redirects=False)
+  self.assertEqual(landing.status_code,303)
+  self.assertEqual(landing.headers['location'],'/eval/1')
+  page=c.get('/').text
+  self.assertIn('class="header-account"',page)
+  self.assertIn('<strong>Giáo viên Tin học mẫu</strong>',page)
+  self.assertNotIn('Danh sách hồ sơ',page)
+  self.assertNotIn('Mở hồ sơ',page)
+  self.assertNotIn('<h1>Tổng quan</h1>',page)
+  self.assertNotIn('name="period"',page)
+  self.assertLess(page.index('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ'),page.index('BƯỚC 1. CÁ NHÂN TỰ ĐÁNH GIÁ'))
+  self.assertIn('PHẦN I. TIÊU CHÍ CHUNG',page)
+  summary=c.get('/eval/1?axis=7').text
+  self.assertIn('XUẤT EXCEL HỒ SƠ ĐÁNH GIÁ',summary)
+  self.assertIn('summary-scores',summary)
  def test_workflow_and_leader_views(self):
   from workflow import states,render
   self.assertEqual(states('draft'),['current','pending','pending','pending'])
