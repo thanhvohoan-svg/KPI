@@ -29,6 +29,15 @@ def badge(status):
  from app import h
  return '<span class="team-status '+h(status)+'">'+h(LABELS.get(status,status))+'</span>'
 
+def review_links(u,e,include_view=True):
+ from app import team_review
+ href='/eval/'+str(e['id'])
+ out='<div class="team-row-actions">'
+ if include_view:out+='<a class="btn small secondary" href="'+href+'">Xem hồ sơ</a>'
+ if team_review(u,e) and not e['locked'] and e['status']=='submitted':
+  out+='<a class="btn small team-approve-link" href="'+href+'?review=approve#team-approve">Duyệt hồ sơ</a><a class="btn small team-return-link" href="'+href+'?review=return#team-return">Trả lại</a>'
+ return out+'</div>'
+
 def dashboard(c,u,p,periods,es,csrf,r):
  from app import h,select,table,result,shown_common,layout,redirect
  pid=p['id']; own=next((e for e in es if e['user']==u['id']),None); members=[e for e in es if e['user']!=u['id']]
@@ -63,16 +72,16 @@ def dashboard(c,u,p,periods,es,csrf,r):
   if e['team_common'] is not None:common_cell+='<small class="team-score-stage">Tổ: '+fmt(e['team_common'])+'</small>'
   if e['final_common'] is not None:common_cell+='<small class="team-score-stage">BGH: '+fmt(e['final_common'])+'</small>'
   kpi=z['kpi'] if z['n'] else None
-  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',badge(e['status']),common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['final_level'] or e['self_level'] or '—'),f'<a class="btn small" href="{href}">Xem hồ sơ</a>'])
- if rows:body+=table(['Họ và tên','Trạng thái','Tiêu chí chung /30','KPI /70','Tổng /100','Xếp loại',''],rows)
+  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',badge(e['status']),common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['self_level'] or '—'),h(e['final_level'] or '—'),review_links(u,e)])
+ if rows:body+=table(['Họ và tên','Trạng thái','Tiêu chí chung /30','KPI /70','Tổng /100','Tự xếp loại','Xếp loại chính thức','Hồ sơ / Thao tác'],rows)
  else:body+='<p class="team-empty">Không có hồ sơ phù hợp.</p>'
  body+='<p class="muted team-list-count">Hiển thị '+str(len(rows))+'/'+str(len(members))+' tổ viên. Hồ sơ chờ đánh giá được ưu tiên ở đầu.</p></section>'
  return layout('Đánh giá tổ viên',body+'</div></div>',u,csrf,compact=True)
 
-def member_header(e,calc,common):
+def member_header(u,e,calc,common):
  from app import h
  import personal_exports as pe
- return '<section class="panel team-member-header"><div><a class="team-back" href="'+h(url(e['period']))+'">← Danh sách tổ viên</a><h2>'+h(e['name'])+'</h2><p class="muted">Quý '+str(e['quarter'])+'/'+str(e['year'])+' · '+h(e['dept'] or 'Chưa phân tổ')+'</p></div><div>'+badge(e['status'])+pe.export_buttons(e['id'])+'</div></section>'
+ return '<section class="panel team-member-header"><div><a class="team-back" href="'+h(url(e['period']))+'">← Danh sách tổ viên</a><h2>'+h(e['name'])+'</h2><p class="muted">Quý '+str(e['quarter'])+'/'+str(e['year'])+' · '+h(e['dept'] or 'Chưa phân tổ')+'</p></div><div>'+badge(e['status'])+review_links(u,e,False)+pe.export_buttons(e['id'])+'</div></section>'
 
 def score_panel(c,e,calc):
  from app import table,h
