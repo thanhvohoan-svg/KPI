@@ -27,7 +27,7 @@ def cell_classes(cell):
   palette={'F4B183':'sheet-group','FCE4D6':'sheet-head','DDEBF7':'sheet-axis','E2F0D9':'sheet-total'}
   classes.append(palette.get(color(cell.fill.fgColor),'sheet-fill'))
  if color(cell.font.color)=='C00000':classes.append('sheet-red')
- if any(getattr(cell.border,k).style for k in ('left','right','top','bottom')):classes.append('sheet-bordered')
+ if any(getattr(getattr(cell.border,k,None),'style',None) for k in ('left','right','top','bottom')):classes.append('sheet-bordered')
  return ' '.join(classes)
 
 def render_sheet(sh,kind):
