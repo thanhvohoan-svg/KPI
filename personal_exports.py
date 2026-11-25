@@ -118,7 +118,8 @@ def kpi_sheet(w,c,e,calc):
  total=r+1;merge(sh,r,0,15,'TỔNG ĐIỂM PHẦN B - KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO',f['total']);sh.write_formula(r,16,'='+ '+'.join('Q'+str(x) for x in axisrows),f['totalnum'],70 if calc['base'] else 0);sh.write_formula(r,17,'='+ '+'.join('R'+str(x) for x in axisrows),f['totalnum'],calc['kpi']);put(sh,r,18,'',f['total']);sh.set_row(r,32);r+=1
  for line in ['(1) Tổng điểm tối đa 06 trục là 70 khi có nhiệm vụ hợp lệ. Trục không có nhiệm vụ có trọng số 0.','(2) Điểm chuẩn theo nhóm và quy tắc trọng số của kỳ: '+e['mode']+'.','(3) Điểm A, B, C và số ngày chậm lấy theo hồ sơ đã lưu. Không làm tròn trọng số từng trục để bảo toàn tổng điểm 70.']:
   merge(sh,r,0,18,line,f['plain']);sh.set_row(r,24);r+=1
- r+=1;merge(sh,r,0,18,'II. TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ CÁ NHÂN',f['section']);r+=1
+ r+=1;merge(sh,r,1,3,'Tổng điểm chuẩn toàn bộ nhiệm vụ:',f['plain']);sh.write_formula(r,4,'=U6',f['num'],calc['base']);merge(sh,r,7,9,'Tổng điểm KPI quy đổi:',f['plain']);sh.write_formula(r,10,f'=R{total}',f['num'],calc['kpi']);sh.set_row(r,30)
+ r+=2;merge(sh,r,0,18,'II. TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ CÁ NHÂN',f['section']);r+=1
  for a,b,v in [(0,4,'Nội dung'),(5,8,'Điểm tối đa'),(9,13,'Cá nhân tự chấm'),(14,18,'Điểm sau rà soát')]:merge(sh,r,a,b,v,f['head'])
  r+=1
  self_common=e['common'];review=e['final_common'] if e['final_common'] is not None else e['team_common'];common_row=r+1;kpi_row=r+2
