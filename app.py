@@ -58,14 +58,16 @@ def select(label,name,options,value=None,attrs=''):
 def check(label,name,value=False): return f'<label class="check"><input type="checkbox" name="{name}" value="1"'+(' checked' if value else '')+f'> {h(label)}</label>'
 def form(url,csrf,body,button='Lưu',extra=''):
  return f'<form method="post" action="{url}" {extra}><input type="hidden" name="csrf" value="{h(csrf)}">{body}<button>{h(button)}</button></form>'
-def layout(title,body,u=None,csrf='',nav=True):
+def layout(title,body,u=None,csrf='',nav=True,compact=False):
  links=''
  if u and nav:
-  links='<a href="/">Tổng quan</a>'+('' if DEMO else '<a href="/password">Đổi mật khẩu</a>')
+  links=('' if u['role']=='teacher' else '<a href="/">Tổng quan</a>')+('' if DEMO else '<a href="/password">Đổi mật khẩu</a>')
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
-  links+=form('/logout',csrf,'','Đăng xuất')
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=23"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main><div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div>'+ (f'<div class="identity">{h(u["name"])}<small>{h(ROLES[u["role"]])}</small></div>' if u else '')+f'</div>{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.3</footer></main></body></html>')
+  links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
+ heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
+ main_class=' class="personal-main"' if compact else ''
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=24"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.4</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -145,6 +147,10 @@ def home(r:Request):
   if u['must_change']:return redirect('/password')
   periods=allrows(c,'SELECT * FROM periods ORDER BY year DESC,quarter DESC'); csrf=s['csrf']
   if not periods:return layout('Tổng quan','<section class="panel">Chưa mở kỳ đánh giá. '+('<a class="btn" href="/manage">Thiết lập kỳ</a>' if can_manage(u) else 'Vui lòng liên hệ Ban Giám hiệu.')+'</section>',u,csrf)
+  if u['role']=='teacher':
+   personal=one(c,'SELECT e.id FROM evaluations e JOIN periods p ON p.id=e.period WHERE e.user=? ORDER BY p.locked ASC,p.year DESC,p.quarter DESC LIMIT 1',(u['id'],))
+   if personal:return redirect(f'/eval/{personal["id"]}')
+   return layout('Hồ sơ cá nhân','<section class="panel">Chưa có hồ sơ đánh giá. Vui lòng liên hệ Ban Giám hiệu.</section>',u,csrf,compact=True)
   try:pid=int(r.query_params.get('period',periods[0]['id']))
   except ValueError:fail('Kỳ không hợp lệ')
   p=period(c,pid); es=scope_evals(c,u,pid); role_cards=''; view=r.query_params.get('view','team')
@@ -235,6 +241,8 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   rows=[]
   for i in range(1,7):
    n,total=counts(i);rows.append([f'<a href="{url(i)}">Trục {i}</a>',f'{n}/{total}' if total else 'Không có nhiệm vụ',f'{sum(z["kpi"] for t,z in grouped[i]):.2f}',f'{sum(z["max"] for t,z in grouped[i]):.2f}'])
+  common=e['common'] if cc.read(c,e) else None
+  body+='<div class="stats summary-scores">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+'</div>'
   body+='<section class="panel"><h2>Tổng hợp và gửi duyệt</h2>'+table(['Trục','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
   body+='<section class="panel"><h2>Tiêu chí chung (30 điểm)</h2><p>Điểm đã lưu: '+h(e['common'] if cc.read(c,e) else 'Chưa chấm chi tiết')+'</p><a class="btn secondary" href="/eval/'+str(eid)+'?part=common">Mở phiếu tiêu chí chung</a></section>'
   ready=calc['ready'] and cc.read(c,e) is not None and e['common'] is not None and e['department'] is not None and all(counts(i)[0]==counts(i)[1] for i in range(1,7))
@@ -275,7 +283,11 @@ def eval_get(eid:int,r:Request):
   if not u:return redirect('/login')
   if u['must_change']:return redirect('/password')
   e=get_eval(c,u,eid); csrf=s['csrf']; calc=result(c,e); common=shown_common(e); editable=u['id']==e['user'] and not e['locked'] and e['status'] in ('draft','returned');review=not e['locked'] and (team_review(u,e) or (can_manage(u) and u['id']!=e['user'])); body=f'<section class="panel toolbar"><div><h2>{h(e["name"])} · Quý {e["quarter"]}/{e["year"]}</h2><p>{h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])} · {"Đã khóa" if e["locked"] else "Đang mở"}</p></div>{pe.export_buttons(eid)}</section><div class="stats">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+stat('Vượt yêu cầu',f'{calc["outstanding"]}/{calc["n"]}')+'</div>'
-  body+=workflow_panel(c,e)
+  personal=u['id']==e['user']
+  if personal:
+   body=workflow_panel(c,e)+f'<section class="panel personal-step-heading"><div><h2>BƯỚC 1. CÁ NHÂN TỰ ĐÁNH GIÁ</h2><p>Quý {e["quarter"]}/{e["year"]} · {h(e["dept"] or "Chưa phân tổ")} · {h(STATUSES[e["status"]])}</p></div>'+('<a class="btn secondary" href="/">Về quản lý tổ / trường</a>' if u['role']!='teacher' else '')+'</section>'
+   if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
+  else:body+=workflow_panel(c,e)
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if can_manage(u):body+=cc.assignment_panel(c,e,csrf)
   if editable:
@@ -311,8 +323,8 @@ def eval_get(eid:int,r:Request):
    body+='</section>'
   if can_manage(u) and u['id']!=e['user'] and not e['locked'] and e['status']=='approved':body+='<section class="panel">'+form(f'/action/reopen/{eid}',csrf,textarea('Lý do mở lại hồ sơ','note',attrs='required'),'Mở lại hồ sơ')+'</section>'
   if e['self_snapshot']:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
-  hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+='<section class="panel"><h2>Nhật ký hồ sơ</h2>'+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+'</section>'
-  return layout('Phiếu KPI cá nhân',body,u,csrf)
+  hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal else '</section>')
+  return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal)
 @app.post('/password')
 @app.post('/logout')
 @app.post('/action/{action}')
