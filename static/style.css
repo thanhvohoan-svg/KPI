@@ -146,3 +146,6 @@ header .header-account{display:flex;flex-direction:column;align-items:flex-end;g
 
 /* V2.25: one selector per metadata field; compact yes/no */
 .suggest-field>label{margin:0}.suggest-field select.field-suggestions{margin:4px 0 0;font-size:inherit;color:inherit;background:#fff;border-color:#b4cbb4}.suggest-field>input:not([hidden]){margin-top:6px}.outstanding-block{margin:10px 0}.outstanding-choice{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.outstanding-choice .check{margin:0;display:inline-flex;align-items:center;gap:5px}.outstanding-choice input[type=radio]{width:auto;margin:0;accent-color:#008000}.outstanding-block [data-outstanding-details]{margin-top:8px}.outstanding-block [hidden],.suggest-field [hidden]{display:none!important}
+
+/* V2.26: compact outstanding result and upload */
+.outstanding-entry{margin:6px 0;align-items:start}.outstanding-entry textarea{min-height:44px;height:44px;resize:vertical}.outstanding-entry input[type=file]{min-height:44px;height:44px;padding:6px}.outstanding-block [data-outstanding-details]{margin-top:4px}
