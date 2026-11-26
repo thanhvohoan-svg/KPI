@@ -134,7 +134,7 @@ def admin_panel(c,u,p,csrf):
  e={'period':pid,'department':dep,'user':u['id']}
  scopes=[('personal','Cá nhân')]+([('school','Toàn trường')] if manage else [])+([('team','Tổ chuyên môn')] if leader else [])
  if not p['locked']:
-  fields=select('Phạm vi','scope',scopes,'personal')+field('Tên minh chứng','title',attrs='required maxlength="500"')+field('Tên công việc liên quan (để gợi ý tự động)','task_title',attrs='maxlength="500"')+textarea('Số văn bản, đường dẫn hoặc mô tả vị trí lưu trữ','reference')+field('Tệp (không bắt buộc)','file',kind='file',attrs='accept=".txt"' if __import__('app').DEMO else 'accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"')
+  fields=select('Phạm vi','scope',scopes,'personal')+field('Tên minh chứng','title',attrs='required maxlength="500"')+field('Tên công việc liên quan (để gợi ý tự động)','task_title',attrs='maxlength="500"')+textarea('Số văn bản, đường dẫn hoặc mô tả vị trí lưu trữ','reference')+field('Tệp (không bắt buộc)','file',kind='file',attrs='')
   body+=form('/action/quick_evidence/'+str(pid),csrf,fields,'Thêm minh chứng',extra='enctype="multipart/form-data"')
  rs=available(c,e)
  body+=table(['Tên minh chứng','Phạm vi','Căn cứ','Tệp'],[[h(r['title']),h({'school':'Trường','team':'Tổ','personal':'Cá nhân'}[r['scope']]),h(r['reference']),'<a href="/quick/file/'+str(r['id'])+'">'+h(r['filename'])+'</a>' if r['filename'] else '—'] for r in rs])+'</section>'
@@ -168,10 +168,9 @@ async def action(c,u,f,action,obj):
    scope=required(f,'scope')
    if scope not in ('personal','school','team') or (scope=='school' and not manage) or (scope=='team' and not leader):fail('Không có quyền tạo minh chứng phạm vi này.',403)
    title=required(f,'title');ref=optional(f,'reference');match=optional(f,'task_title',500);file=f.get('file');name='';data=None
-   if isinstance(file,UploadFile) and file.filename:
-    name=Path(file.filename.replace('\\','/')).name[:180];data=await file.read(5*1024*1024+1);await file.close()
-    if Path(name).suffix.lower() not in ('.pdf','.docx','.xlsx','.png','.jpg','.jpeg','.txt') or not data or len(data)>5*1024*1024:fail('Tệp không hợp lệ.')
-    if DEMO and (Path(name).suffix.lower()!='.txt' or len(data)>100000 or one(c,'SELECT COALESCE(SUM(length(body)),0) FROM evidence_store')[0]+len(data)>1000000):fail('Demo chỉ nhận TXT giả lập tối đa 100 KB, tổng 1 MB.')
+   from evidence_upload import read_file
+   uploaded=read_file(c,file)
+   if uploaded:name,data=uploaded
    if not ref and not data:fail('Cần căn cứ hoặc tệp minh chứng thực tế.')
    c.execute('INSERT INTO evidence_store(period,scope,department,owner,title,reference,task_title,filename,body) VALUES(?,?,?,?,?,?,?,?,?)',(obj,scope,dep if scope=='team' else None,uid,title,ref,match,name,data));audit(c,uid,'Thêm minh chứng vào kho',detail=title)
   return redirect('/quick?period='+str(obj))
@@ -215,7 +214,7 @@ async def action(c,u,f,action,obj):
   for t in chosen:
    key=(normalize(t['title']),normalize(t['source']))
    if key in existing:continue
-   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due) VALUES(?,?,?,?,?,?,?,?)',(obj,t['title'],t['source'],axis,t['grp'],t['product'],t['qty'],cutoff if action=='quick_copy' else t['due'])).lastrowid
+   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due) VALUES(?,?,?,?,?,?,?,?)',(obj,t['title'],t['source'],axis,t['grp'],t['product'],t['qty'],cutoff if action=='quick_copy' or (DEMO and t['source']=='KH DEMO 01 (giả lập)') else t['due'])).lastrowid
    if first is None:first=tid
    existing.add(key);audit(c,uid,'Tự khai nhiệm vụ',obj,str(tid));audit(c,uid,'Nhập nhanh nhiệm vụ',obj,t['title'])
   if first is not None:return redirect('/eval/'+str(obj)+'?axis='+str(axis)+'&focus='+str(first)+'#axis-workspace')
