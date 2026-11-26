@@ -206,19 +206,19 @@ class DemoTest(unittest.TestCase):
   page=c.get('/eval/1?axis=1&add=1').text
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',page)
   self.assertIn('Nhập thêm công việc 2',page)
-  self.assertIn('CÔNG VIỆC ĐÃ LƯU (1)',page)
-  self.assertIn('1 công việc đã lưu',page)
+  self.assertNotIn('CÔNG VIỆC ĐÃ LƯU',page)
+  self.assertIn('1 công việc',page)
   self.assertIn('KPI: 70.00/70.00',page)
   other_axis=c.get('/eval/1?axis=2').text
   self.assertIn('KPI: 70.00/70.00',other_axis)
-  self.assertIn('1 công việc đã lưu',other_axis)
+  self.assertIn('1 công việc',other_axis)
   summary=c.get('/eval/1?axis=7').text
   self.assertIn('Bồi dưỡng học sinh giỏi',summary)
-  self.assertIn('Công việc đã lưu',summary)
+  self.assertNotIn('Công việc đã lưu',summary)
   self.assertNotIn('Điểm tạm tính',summary)
   self.assertEqual(page.count('class="panel axis-workspace" id="axis-workspace"'),1)
   self.assertIn('class="axis-intro"',page)
-  self.assertIn('class="axis-progress"',page)
+  self.assertNotIn('class="axis-progress"',page)
   self.assertIn('class="new-work-panel"',page)
   self.assertNotIn('class="panel new-work-panel"',page)
   self.assertIn('<details class="task work-card" name="axis-work">',page)
@@ -283,7 +283,7 @@ class DemoTest(unittest.TestCase):
   self.assertGreaterEqual(len(ids),2)
   self.post(c,'/action/quick_add/1',{'axis':'1',**{'tpl_'+i:'1' for i in ids}},'/eval/1')
   page=c.get('/eval/1?axis=1').text
-  self.assertIn('CÔNG VIỆC ĐÃ LƯU',page)
+  self.assertNotIn('CÔNG VIỆC ĐÃ LƯU',page)
   doneids=re.findall(r'name="done_(\d+)"',page)
   self.assertTrue(doneids)
   links=re.findall(r'name="(link_\d+_\d+)"',page)
@@ -292,7 +292,7 @@ class DemoTest(unittest.TestCase):
   self.post(c,'/action/quick_done/1',{'axis':'1','confirmed':'1',**{'done_'+i:'1' for i in doneids},**{k:'1' for k in links}},'/eval/1')
   page=c.get('/eval/1?axis=1').text
   self.assertIn('Biên bản thử của tổ',page)
-  self.assertIn('Đã lưu đủ dữ liệu',page)
+  self.assertIn('Đủ dữ liệu',page)
   tid,ev=links[0].split('_')[1:]
   self.post(c,'/action/quick_link/'+tid,{'ev_999999':'1','confirmed':'1'},'/eval/1',403)
   r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
@@ -336,8 +336,8 @@ class DemoTest(unittest.TestCase):
   saved=self.post(c,'/action/task/'+tasks[0],{'edit_meta':'1','choice':title,'source':'KH thử','product':'Sản phẩm thử','grp':'1','qty':'1','due':'quarter','done':'1','corrections':'0','finish':'quarter','evidence':'Mẫu','next_after':'1'},'/eval/1')
   self.assertIn('&focus='+tasks[1],saved.headers['location'])
   page=c.get(saved.headers['location']).text
-  self.assertIn('Đã lưu đủ dữ liệu',page)
+  self.assertIn('Đủ dữ liệu',page)
   self.assertIn('Cần bổ sung',page)
-  self.assertIn('CÔNG VIỆC ĐÃ LƯU (2)',page)
+  self.assertNotIn('CÔNG VIỆC ĐÃ LƯU',page)
   self.post(c,'/action/axis_next/1',{'axis':'1'},'/eval/1',400)
 if __name__=='__main__':unittest.main(verbosity=2)
