@@ -207,11 +207,11 @@ class DemoTest(unittest.TestCase):
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',page)
   self.assertIn('Nhập thêm công việc 2',page)
   self.assertNotIn('CÔNG VIỆC ĐÃ LƯU',page)
-  self.assertIn('1 công việc',page)
+  self.assertNotIn('Chưa nhập công việc',page)
   self.assertIn('KPI: 70.00/70.00',page)
   other_axis=c.get('/eval/1?axis=2').text
   self.assertIn('KPI: 70.00/70.00',other_axis)
-  self.assertIn('1 công việc',other_axis)
+  self.assertNotIn('Chưa nhập công việc',other_axis)
   summary=c.get('/eval/1?axis=7').text
   self.assertIn('Bồi dưỡng học sinh giỏi',summary)
   self.assertNotIn('Công việc đã lưu',summary)
@@ -246,7 +246,7 @@ class DemoTest(unittest.TestCase):
   base={'source':'KH mẫu','product':'Sản phẩm mẫu','grp':'1','qty':'1','done':'1','corrections':'0','axis':'1','evidence':'Minh chứng mẫu'}
   self.post(c,'/action/self_add/1',dict(base,choice='Bồi dưỡng học sinh giỏi',due='quarter',finish='quarter'),'/eval/1')
   page=c.get('/eval/1?axis=1').text
-  self.assertIn('Hạn: Quý III/2026',page)
+  self.assertIn('value="quarter" selected>Quý III/2026',page)
   self.assertIn('KPI: 70.00/70.00',page)
   self.post(c,'/action/self_add/1',dict(base,choice='Sinh hoạt chuyên môn',due='exact',due_exact='2026-09-25',finish='quarter'),'/eval/1',400)
   self.post(c,'/action/self_add/1',dict(base,choice='Sinh hoạt chuyên môn',due='exact',due_exact='2026-09-25',finish='exact',finish_exact='2026-09-30'),'/eval/1')
@@ -292,7 +292,7 @@ class DemoTest(unittest.TestCase):
   self.post(c,'/action/quick_done/1',{'axis':'1','confirmed':'1',**{'done_'+i:'1' for i in doneids},**{k:'1' for k in links}},'/eval/1')
   page=c.get('/eval/1?axis=1').text
   self.assertIn('Biên bản thử của tổ',page)
-  self.assertIn('Đủ dữ liệu',page)
+  self.assertIn('Lưu công việc',page)
   tid,ev=links[0].split('_')[1:]
   self.post(c,'/action/quick_link/'+tid,{'ev_999999':'1','confirmed':'1'},'/eval/1',403)
   r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
@@ -310,7 +310,7 @@ class DemoTest(unittest.TestCase):
   self.post(c,'/action/quick_copy/'+eid,{'axis':'1','confirmed':'1',**{'old_'+i:'1' for i in oldids}},path)
   page=c.get(path+'?axis=1').text
   self.assertIn(template['title'],page)
-  self.assertIn('Cần bổ sung',page)
+  self.assertIn('Lưu công việc',page)
   self.assertNotIn('Biên bản thử của tổ',page)
  def test_simple_axis_picker(self):
   c=self.client();self.login(c,'giaovien')
@@ -330,14 +330,26 @@ class DemoTest(unittest.TestCase):
   tasks=re.findall(r'/action/task/(\d+)',page)
   self.assertEqual(len(tasks),2)
   self.assertEqual(page.count('name="axis-work" open'),1)
-  self.assertIn('class="work-metadata" open',page)
+  self.assertNotIn('Thông tin nhiệm vụ · Nhóm',page)
+  self.assertNotIn('class="work-metadata"',page)
+  self.assertIn('class="work-actions"',page)
+  self.assertIn('Xóa công việc',page)
+  self.assertIn('data-delete-work',page)
   self.post(c,'/action/task/'+tasks[0],{'done':'1','corrections':'0','finish':'quarter','evidence':'Mẫu'},'/eval/1',400)
   title=re.search(r'Công việc 1: ([^<]+)',page).group(1)
   saved=self.post(c,'/action/task/'+tasks[0],{'edit_meta':'1','choice':title,'source':'KH thử','product':'Sản phẩm thử','grp':'1','qty':'1','due':'quarter','done':'1','corrections':'0','finish':'quarter','evidence':'Mẫu','next_after':'1'},'/eval/1')
   self.assertIn('&focus='+tasks[1],saved.headers['location'])
   page=c.get(saved.headers['location']).text
-  self.assertIn('Đủ dữ liệu',page)
-  self.assertIn('Cần bổ sung',page)
+  self.assertIn('Lưu công việc',page)
+  self.assertIn('Lưu công việc',page)
   self.assertNotIn('CÔNG VIỆC ĐÃ LƯU',page)
   self.post(c,'/action/axis_next/1',{'axis':'1'},'/eval/1',400)
+  self.post(c,'/action/self_delete/'+tasks[1],{},'/eval/1',400)
+  self.post(c,'/action/self_delete/'+tasks[1],{'confirmed':'1'},'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  self.assertEqual(re.findall(r'/action/task/(\d+)',page),[tasks[0]])
+  self.assertNotIn('Chưa nhập công việc',page)
+  self.assertNotIn('Cần bổ sung ·',page)
+  self.assertNotIn('Thông tin nhiệm vụ · Nhóm',page)
+  self.post(c,'/action/axis_next/1',{'axis':'1'},'/eval/1')
 if __name__=='__main__':unittest.main(verbosity=2)
