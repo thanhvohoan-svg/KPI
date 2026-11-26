@@ -97,5 +97,5 @@ def action(c,u,f,action,obj):
   if finish and finish>cutoff:fail('Ngày hoàn thành sau thời điểm chốt quý.')
   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence,outstanding,outstanding_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due,done,cor,finish,ev,out,note)).lastrowid
   audit(c,uid,'Tự khai nhiệm vụ',e['id'],str(tid));audit(c,uid,'Nội dung nhiệm vụ tự khai',e['id'],title)
- if action=='self_add' and f.get('next_work')=='1':return redirect(f'/eval/{e["id"]}?axis={axis}&add=1#new-work')
+ if action=='self_add' and f.get('next_work')=='1':return redirect(f'/eval/{e["id"]}?axis={axis}&add=1#axis-workspace')
  return redirect(f'/eval/{e["id"]}?axis={axis}')
