@@ -68,17 +68,22 @@ def evidence_panel(c,calc):
  if not items:return ''
  return '<details class="declared-evidence"><summary>Hiện minh chứng ('+str(len(items))+' công việc)</summary><ol>'+''.join(items)+'</ol></details>'
 
-def preview(c,e,calc,csrf='',active=False):
+def preview(c,e,calc,csrf='',active=False,section=None):
  from app import workbook
  import team_review_parts as tr
  saved=tr.read(c,e)
+ if section not in ('common','kpi'):
+  section='kpi' if 'common' in saved and 'kpi' not in saved else 'common'
  b,w=workbook();pe.common_sheet(w,c,e);w.close();b.seek(0);book=load_workbook(b,data_only=True)
  try:common=render_sheet(book.active,'common')
  finally:book.close()
  b,w=workbook();pe.kpi_sheet(w,c,e,calc,hide_evidence=True);w.close();b.seek(0);book=load_workbook(b,data_only=True)
  try:kpi=render_sheet(book.active,'kpi')
  finally:book.close()
- out='<section class="panel excel-preview"><h2>XEM HỒ SƠ ĐÁNH GIÁ</h2>'+tr.progress(e,saved)
- out+='<section id="team-approve" class="review-part team-action-target"><h3>PHỤ LỤC CHẤM TIÊU CHÍ CHUNG</h3>'+common+tr.approval_form(e,'common',saved,csrf,active)+'</section>'
- out+='<section id="team-kpi" class="review-part team-action-target"><h3>BẢNG ĐÁNH GIÁ KPI</h3>'+kpi+evidence_panel(c,calc)+tr.approval_form(e,'kpi',saved,csrf,active)+'</section>'
- return out+'</section>'
+ out='<div class="review-sections">'
+ for part,anchor,title,content in [('common','team-approve','I. PHỤ LỤC CHẤM TIÊU CHÍ CHUNG',common),('kpi','team-kpi','II. BẢNG ĐÁNH GIÁ KPI',kpi+evidence_panel(c,calc))]:
+  done=part in saved or (e['status'] in ('team','approved') and e['team_common'] is not None)
+  label='<span class="review-part-status">'+('✓ Đã duyệt' if done else 'Chưa duyệt')+'</span>' if active or done else ''
+  out+='<details id="'+anchor+'" class="review-part team-action-target" name="review-section"'+(' open' if section==part else '')+'><summary><b>'+title+'</b>'+label+'</summary><div class="review-part-body">'+content+tr.approval_form(e,part,saved,csrf,active)+'</div></details>'
+ if e['status'] in ('team','approved') and e['team_common'] is not None:out+='<p id="review-finished" class="section-approved">✓ Đã duyệt đủ hai phần. Hồ sơ đã chuyển BGH.</p>'
+ return out+'</div>'

@@ -41,12 +41,12 @@ def review_links(u,e,include_view=True):
  from app import team_review,h
  href='/eval/'+str(e['id'])
  out='<div class="team-row-actions">'
- if include_view:out+='<a class="btn small secondary" href="'+href+'">Xem hồ sơ</a>'
- if team_review(u,e) and not e['locked'] and e['status']=='submitted':
-  out+='<a class="btn small team-approve-link" href="'+href+'?review=approve#team-approve">Duyệt</a><a class="btn small team-return-link" href="'+href+'?review=return#team-return">Trả lại</a>'
+ active=team_review(u,e) and not e['locked'] and e['status']=='submitted'
+ if include_view:out+='<a class="btn small'+('' if active else ' secondary')+'" href="'+href+'">'+('Xem &amp; duyệt hồ sơ' if u['role']=='leader' else 'Xem hồ sơ')+'</a>'
+ if active:out+='<a class="btn small team-return-link" href="'+href+'?review=return#team-return">Trả lại</a>'
  elif include_view and u['role']=='leader':
   reason='Kỳ đánh giá đã khóa' if e['locked'] else 'Chưa đến lượt tổ trưởng xử lý hoặc không thuộc thẩm quyền'
-  out+='<button type="button" class="btn small team-action-disabled" disabled title="'+h(reason)+'">Duyệt</button><button type="button" class="btn small team-action-disabled" disabled title="'+h(reason)+'">Trả lại</button>'
+  out+='<button type="button" class="btn small team-action-disabled" disabled title="'+h(reason)+'">Trả lại</button>'
  return out+'</div>'
 
 def dashboard(c,u,p,periods,es,csrf,r):
@@ -93,8 +93,7 @@ def dashboard(c,u,p,periods,es,csrf,r):
 
 def member_header(u,e,calc,common):
  from app import h
- import personal_exports as pe
- return '<section class="panel team-member-header"><div><a class="team-back" href="'+h(url(e['period']))+'">← Danh sách tổ viên</a><h2>'+h(e['name'])+'</h2><p class="muted">Quý '+str(e['quarter'])+'/'+str(e['year'])+' · '+h(e['dept'] or 'Chưa phân tổ')+'</p></div><div>'+badge(e['status'])+review_links(u,e,False)+pe.export_buttons(e['id'])+'</div></section>'
+ return '<div class="review-identity"><a class="team-back" href="'+h(url(e['period']))+'">← Danh sách tổ viên</a><strong>'+h(e['name'])+'</strong></div>'
 
 def score_panel(c,e,calc):
  from app import table,h
