@@ -143,3 +143,6 @@ header .header-account{display:flex;flex-direction:column;align-items:flex-end;g
 /* V2.24: clearer work titles */
 .axis-workspace .work-card>summary .work-name b{font-size:20px;font-weight:700;line-height:1.3;color:#005b00}.axis-workspace .new-work>summary .new-work-title{font-size:20px;font-weight:700;color:#005b00;line-height:1.3}
 @media(max-width:700px){.axis-workspace .work-card>summary .work-name b,.axis-workspace .new-work>summary .new-work-title{font-size:18px}}
+
+/* V2.25: one selector per metadata field; compact yes/no */
+.suggest-field>label{margin:0}.suggest-field select.field-suggestions{margin:4px 0 0;font-size:inherit;color:inherit;background:#fff;border-color:#b4cbb4}.suggest-field>input:not([hidden]){margin-top:6px}.outstanding-block{margin:10px 0}.outstanding-choice{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.outstanding-choice .check{margin:0;display:inline-flex;align-items:center;gap:5px}.outstanding-choice input[type=radio]{width:auto;margin:0;accent-color:#008000}.outstanding-block [data-outstanding-details]{margin-top:8px}.outstanding-block [hidden],.suggest-field [hidden]{display:none!important}
