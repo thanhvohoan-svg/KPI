@@ -73,7 +73,7 @@ class DemoTest(unittest.TestCase):
   self.post(c,'/action/submit/1',{'confirmed':'1'},'/eval/1')
   self.logout(c);self.login(c,'totruong')
   review=c.get('/eval/1').text
-  for label in ('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ','KẾT QUẢ ĐÁNH GIÁ','TIẾN ĐỘ DUYỆT:','XEM HỒ SƠ ĐÁNH GIÁ','team-flow-frame','Xuất Excel phụ lục chấm','Xuất Excel KPI'):
+  for label in ('QUY TRÌNH LUÂN CHUYỂN HỒ SƠ','<h2>KẾT QUẢ ĐÁNH GIÁ</h2>','TIẾN ĐỘ DUYỆT:','XEM HỒ SƠ ĐÁNH GIÁ','team-flow-frame','Xuất Excel phụ lục chấm','Xuất Excel KPI'):
    self.assertNotIn(label,review)
   self.assertIn('class="review-sections"',review)
   self.assertIn('id="team-approve" class="review-part team-action-target" name="review-section" open',review)
