@@ -62,7 +62,7 @@ def outstanding_fields(c,t=None):
  note,files=proof(c,t['id']) if t else ('',[])
  def radio(value,label,checked):return '<label class="check"><input type="radio" name="outstanding" value="'+value+'"'+(' checked' if checked else '')+'> '+label+'</label>'
  out='<div class="outstanding-block" data-outstanding><div class="outstanding-choice"><b>Đề xuất vượt yêu cầu</b>'+radio('0','Không',not on)+radio('1','Có',on)+'</div><div data-outstanding-details'+('' if on else ' hidden')+'>'
- out+=textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'] if t else '',attrs='rows="2" maxlength="2000" data-outstanding-note')+'<div class="evidence-entry"><div>'+textarea('Minh chứng vượt yêu cầu','outstanding_evidence',note,attrs='rows="2" maxlength="2000"')+'</div><div>'+field('Đính kèm minh chứng vượt yêu cầu','outstanding_file',kind='file',attrs='multiple')
+ out+='<div class="evidence-entry outstanding-entry"><div>'+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'] if t else '',attrs='rows="1" maxlength="2000" data-outstanding-note')+'</div><div>'+field('Đính kèm minh chứng vượt yêu cầu','outstanding_file',kind='file',attrs='multiple')
  if files:out+='<div class="evidence-uploads">'+''.join('<a href="/attachment/'+str(r['id'])+'">'+h(r['filename'])+'</a>' for r in files)+'</div>'
  return out+'</div></div></div></div>'
 
@@ -75,5 +75,5 @@ def save_outstanding(c,u,e,tid,f,on,note):
  ev=optional(f,'outstanding_evidence') if 'outstanding_evidence' in f else old
  save_files(c,u,e,tid,f,key='outstanding_file',outstanding=True)
  _,files=proof(c,tid)
- if not ev and not files:fail('Cần nhập hoặc đính kèm minh chứng vượt yêu cầu.')
+ if not ev and not files:fail('Cần đính kèm minh chứng vượt yêu cầu.')
  c.execute('INSERT INTO outstanding_evidence(task,note) VALUES(?,?) ON CONFLICT(task) DO UPDATE SET note=excluded.note',(tid,ev))
