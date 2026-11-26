@@ -2,6 +2,7 @@
 from urllib.parse import urlencode
 import workflow
 import common_criteria as cc
+import team_review_parts as tr
 from core import normalize
 
 LABELS={
@@ -82,7 +83,9 @@ def dashboard(c,u,p,periods,es,csrf,r):
   if e['team_common'] is not None:common_cell+='<small class="team-score-stage">Tổ: '+fmt(e['team_common'])+'</small>'
   if e['final_common'] is not None:common_cell+='<small class="team-score-stage">BGH: '+fmt(e['final_common'])+'</small>'
   kpi=z['kpi'] if z['n'] else None
-  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',badge(e['status']),common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['self_level'] or '—'),h(e['final_level'] or '—'),review_links(u,e)])
+  state=badge(e['status'])
+  if e['status']=='submitted':state+='<small class="team-progress-label">Đã duyệt '+str(len(tr.read(c,e)))+'/2 phần</small>'
+  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',state,common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['self_level'] or '—'),h(e['final_level'] or '—'),review_links(u,e)])
  if rows:body+=table(['Họ và tên','Trạng thái','Tiêu chí chung /30','KPI /70','Tổng /100','Tự xếp loại','Xếp loại chính thức','Hồ sơ / Thao tác'],rows)
  else:body+='<p class="team-empty">Không có hồ sơ phù hợp.</p>'
  body+='<p class="muted team-list-count">Hiển thị '+str(len(rows))+'/'+str(len(members))+' tổ viên. Hồ sơ chờ đánh giá được ưu tiên ở đầu.</p></section>'
