@@ -202,11 +202,21 @@ class DemoTest(unittest.TestCase):
   c=self.client();self.login(c,'giaovien')
   base={'source':'KH thử','product':'Sản phẩm thử','grp':'1','qty':'1','due':'2026-09-30','done':'1','corrections':'0','finish':'2026-09-30','evidence':'Minh chứng mẫu'}
   first=self.post(c,'/action/self_add/1',dict(base,axis='1',choice='Bồi dưỡng học sinh giỏi',next_work='1'),'/eval/1')
-  self.assertEqual(first.headers['location'],'/eval/1?axis=1&add=1#new-work')
+  self.assertEqual(first.headers['location'],'/eval/1?axis=1&add=1#axis-workspace')
   page=c.get('/eval/1?axis=1&add=1').text
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',page)
   self.assertIn('Nhập công việc 2',page)
-  self.assertEqual(page.count('class="panel axis-workspace"'),1)
+  self.assertIn('CÔNG VIỆC ĐÃ LƯU (1)',page)
+  self.assertIn('1 công việc đã lưu',page)
+  self.assertIn('KPI: 70.00/70.00',page)
+  other_axis=c.get('/eval/1?axis=2').text
+  self.assertIn('KPI: 70.00/70.00',other_axis)
+  self.assertIn('1 công việc đã lưu',other_axis)
+  summary=c.get('/eval/1?axis=7').text
+  self.assertIn('Bồi dưỡng học sinh giỏi',summary)
+  self.assertIn('Công việc đã lưu',summary)
+  self.assertIn('Điểm tạm tính',summary)
+  self.assertEqual(page.count('class="panel axis-workspace" id="axis-workspace"'),1)
   self.assertIn('class="axis-intro"',page)
   self.assertIn('class="axis-progress"',page)
   self.assertIn('class="new-work-panel"',page)
