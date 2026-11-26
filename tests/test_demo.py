@@ -51,7 +51,7 @@ class DemoTest(unittest.TestCase):
   self.logout(c);self.login(c,'totruong');self.assertEqual(c.get('/eval/5').status_code,403);self.assertEqual(c.get('/export/eval/5').status_code,403)
   pending=c.get('/?period=1&view=team&status=submitted').text
   self.assertIn('href="/eval/1"',pending)
-  self.assertNotIn('href="/eval/3"',pending)
+  self.assertIn('href="/eval/3"',pending) # submitted demo sample
   self.assertIn('Tự xếp loại',pending)
   self.assertIn('Xếp loại chính thức',pending)
   self.assertIn('Hoàn thành tốt nhiệm vụ',pending)
@@ -161,8 +161,13 @@ class DemoTest(unittest.TestCase):
   self.assertIn('Xem hồ sơ',team.text)
   self.assertIn('Tự xếp loại',team.text)
   self.assertIn('Xếp loại chính thức',team.text)
-  self.assertNotIn('team-approve-link',team.text)
-  self.assertNotIn('team-return-link',team.text)
+  self.assertIn('/eval/3?review=approve#team-approve',team.text)
+  self.assertIn('/eval/3?review=return#team-return',team.text)
+  self.assertIn('team-action-disabled" disabled',team.text)
+  self.assertNotIn('/eval/1?review=approve',team.text)
+  self.assertNotIn('/eval/1?review=return',team.text)
+  self.assertLess(team.text.index('<th>Hồ sơ / Thao tác</th>'),team.text.index('<th>Trạng thái</th>'))
+  self.assertIn('id="team-approve"',c.get('/eval/3?review=approve').text)
   self.assertIn('href="/eval/1"',team.text)
   self.assertIn('href="/eval/2"',team.text) # personal navigation, not a row
   self.assertNotIn('href="/eval/5"',team.text)
@@ -171,7 +176,7 @@ class DemoTest(unittest.TestCase):
   searched=c.get('/?period=1&view=team&q=DEMO03')
   self.assertIn('href="/eval/3"',searched.text)
   self.assertNotIn('href="/eval/1"',searched.text)
-  empty=c.get('/?period=1&view=team&status=submitted')
+  empty=c.get('/?period=1&view=team&status=submitted&q=khongcogiaoviennay')
   self.assertIn('Không có hồ sơ phù hợp.',empty.text)
   self.assertEqual(c.get('/eval/5').status_code,403)
   self.post(c,'/action/team/2',{'common':'30','note':'Không được tự duyệt'},'/eval/2',403)
