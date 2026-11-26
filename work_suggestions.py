@@ -63,7 +63,7 @@ def catalogue(c,e,axis,names):
   for r in library:
    if normalize(r['title'])==key:add(product,r['product'])
   src,prod=GENERAL.get(title,FALLBACK)
-  for x in src:add(source,x,'Loại văn bản: '+x)
+  for x in src:add(source,x)
   for x in prod:add(product,x)
   out[title]={'source':source,'product':product}
  return out
