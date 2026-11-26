@@ -47,9 +47,10 @@ def prior(c,e,axis):
 
 def suggestions(c,e,axis):
  from axis_self import choices
+ from hashlib import sha256
  known={normalize(t['title']) for t in templates(c,e,axis)}
  known.update(normalize(t['title']) for t in c.execute('SELECT title FROM tasks WHERE evaluation=?',(e['id'],)))
- return [(i,title) for i,title in enumerate(choices(c,axis)) if normalize(title) not in known]
+ return [(sha256(normalize(title).encode()).hexdigest()[:24],title) for title in choices(c,axis) if normalize(title) not in known]
 
 def picker(c,e,csrf,axis,rows):
  from app import h,form,check
@@ -88,6 +89,28 @@ def panel(c,e,csrf,axis,rows):
   fields+=check('Tôi xác nhận các công việc đã chọn hoàn thành đủ số lượng, đúng hạn, không phải chỉnh sửa; minh chứng đã chọn thực sự liên quan.','confirmed')
   out+='<h3>Xác nhận kết quả hàng loạt</h3>'+form('/action/quick_done/'+str(e['id']),csrf,fields,'Lưu kết quả đã xác nhận')
  return out+'</div></details>'
+
+def inline_evidence(c,e,t):
+ from app import check
+ items=available(c,e);have={r['id'] for r in linked(c,t['id'])}
+ if not items:return ''
+ matches=[r for r in items if normalize(r['task_title'])==normalize(t['title']) or r['id'] in have]
+ rest=[r for r in items if r['id'] not in {x['id'] for x in matches}]
+ def options(rs):return ''.join(check(r['title']+(' · '+r['reference'] if r['reference'] else ''),'ev_'+str(r['id']),r['id'] in have) for r in rs)
+ out='<input type="hidden" name="inline_evidence" value="1"><div class="inline-evidence"><b>Minh chứng từ kho</b>'
+ if matches:out+=options(matches)
+ if rest:out+='<details><summary>Chọn minh chứng khác</summary>'+options(rest)+'</details>'
+ return out+'<small>Chỉ tích minh chứng thực sự liên quan; bấm Lưu công việc để xác nhận.</small></div>'
+
+def save_inline(c,u,e,t,f):
+ from app import fail
+ if not f.get('inline_evidence'):return
+ allowed={r['id'] for r in available(c,e)}
+ wanted={int(k[3:]) for k in f.keys() if k.startswith('ev_') and k[3:].isdigit() and f.get(k)}
+ if not wanted<=allowed:fail('Minh chứng ngoài phạm vi.',403)
+ c.execute('DELETE FROM evidence_links WHERE task=?',(t['id'],))
+ for k in wanted:c.execute('INSERT INTO evidence_links VALUES(?,?)',(t['id'],k))
+ audit(c,u['id'],'Liên kết minh chứng',e['id'],str(t['id']))
 
 def evidence_form(c,e,t,csrf):
  from app import h,form,check
