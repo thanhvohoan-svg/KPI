@@ -270,11 +270,10 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
    else:
     fields=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))} · Nhóm {t["grp"]}</p>'
    fields+='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'] if t['corrections'] is not None else 0,'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=None if meta else t['effective_due'] or t['due'],default_quarter=t['done'] is None and (t['effective_due'] or t['due'])==end_of_quarter(e['year'],e['quarter']).isoformat())+'</div>'+quick.inline_evidence(c,e,t)+eu.fields(c,t)+'<details class="work-exception"><summary>Đề xuất vượt yêu cầu (nếu có)</summary>'+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])+'</details><input type="hidden" name="next_after" value="1">'
+   fields+=quick.links_html(c,tid)
    delete_button=f'<button type="submit" class="work-delete-btn" form="delete-work-{tid}">Xóa công việc</button>' if meta else ''
    body+=f'<form method="post" action="/action/task/{tid}" enctype="multipart/form-data" data-work-form><input type="hidden" name="csrf" value="{h(csrf)}">'+fields+'<div class="work-actions"><button type="submit">Lưu công việc</button>'+delete_button+'</div></form>'
    if meta:body+=f'<form method="post" action="/action/self_delete/{tid}" id="delete-work-{tid}" data-delete-work hidden><input type="hidden" name="csrf" value="{h(csrf)}"><input type="hidden" name="confirmed" value=""></form>'
-   body+=quick.links_html(c,tid)
-  body+='</details>'+quick.links_html(c,tid)
   body+='</details>'
  body+='</div>'
  body+=quick.panel(c,e,csrf,step,grouped[step])
