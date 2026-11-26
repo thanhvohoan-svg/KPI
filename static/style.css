@@ -133,3 +133,6 @@ header .header-account{display:flex;flex-direction:column;align-items:flex-end;g
 /* V2.22: text and file evidence on the same row */
 .evidence-entry{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;margin:10px 0}.evidence-entry label{margin:0}.evidence-entry textarea{min-height:64px;resize:vertical}.evidence-entry input[type=file]{width:100%;min-height:64px;padding:10px;box-sizing:border-box}.evidence-uploads{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:5px;font-size:14px;overflow-wrap:anywhere}.evidence-uploads a{color:#005b00}
 @media(max-width:700px){.evidence-entry{grid-template-columns:1fr;gap:7px}.evidence-entry input[type=file]{min-height:44px}}
+
+.work-actions{justify-content:flex-end}.axis-content .new-work .axis-actions{justify-content:flex-end}
+@media(max-width:700px){.work-actions button{flex:0 1 auto}}
