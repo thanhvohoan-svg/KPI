@@ -70,7 +70,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=214"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.14</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=215"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.15</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -227,20 +227,24 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
  def counts(i):
   active=[(t,z) for t,z in grouped[i] if not t['cancelled']]
   return sum(bool(z['ready'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note'])) for t,z in active),len(active)
+ def axis_points(i):return sum(z['kpi'] for t,z in grouped[i]),sum(z['max'] for t,z in grouped[i])
  def url(i):return f'/eval/{eid}?axis={i}'
- body='<section class="panel axis-workspace"><div class="axis-top"><h2>Phiếu tự đánh giá theo trục</h2><p class="muted">Chọn trục, nhập công việc và lưu lần lượt.</p></div><div class="axis-nav">'
+ body='<section class="panel axis-workspace" id="axis-workspace"><div class="axis-top"><h2>Phiếu tự đánh giá theo trục</h2><p class="muted">Chọn trục, nhập công việc và lưu lần lượt.</p></div><div class="axis-nav">'
  for i in range(1,7):
-  n,total=counts(i);status=f'{n}/{total} đã đủ dữ liệu' if total else 'Không có nhiệm vụ'
-  body+=f'<a class="axis-tab{" active" if step==i else ""}" href="{url(i)}"'+(' aria-current="step"' if step==i else '')+f'><b>TRỤC {i}</b><small>{status}</small></a>'
- body+=f'<a class="axis-tab{" active" if step==7 else ""}" href="{url(7)}"'+(' aria-current="step"' if step==7 else '')+'><b>TỔNG HỢP</b><small>Điểm chung & gửi duyệt</small></a></div>'
+  n,total=counts(i);earned,maximum=axis_points(i)
+  status=f'{len(grouped[i])} công việc đã lưu · {n}/{total} đủ dữ liệu' if grouped[i] else 'Chưa nhập công việc'
+  body+=f'<a class="axis-tab{" active" if step==i else ""}" href="{url(i)}"'+(' aria-current="step"' if step==i else '')+f'><b>TRỤC {i}</b><small>{status}</small><span class="axis-tab-score">KPI: {earned:.2f}/{maximum:.2f}</span></a>'
+ body+=f'<a class="axis-tab{" active" if step==7 else ""}" href="{url(7)}"'+(' aria-current="step"' if step==7 else '')+f'><b>TỔNG HỢP</b><small>Điểm chung & gửi duyệt</small><span class="axis-tab-score">KPI: {calc["kpi"]:.2f}/70</span></a></div><p class="axis-score-note">Điểm tạm tính theo toàn bộ công việc đã lưu; trọng số từng trục tự cập nhật khi thêm hoặc sửa công việc. Chọn tab để xem lại nội dung đã lưu.</p>'
  if step==7:
   body+='</section>'
   rows=[]
   for i in range(1,7):
-   n,total=counts(i);rows.append([f'<a href="{url(i)}">Trục {i}</a>',f'{n}/{total}' if total else 'Không có nhiệm vụ',f'{sum(z["kpi"] for t,z in grouped[i]):.2f}',f'{sum(z["max"] for t,z in grouped[i]):.2f}'])
+   n,total=counts(i);earned,maximum=axis_points(i)
+   titles='<ol class="axis-summary-tasks">'+''.join('<li>'+h(t['title'])+(' (đã dừng)' if t['cancelled'] else '')+'</li>' for t,z in grouped[i])+'</ol>' if grouped[i] else '—'
+   rows.append([f'<a href="{url(i)}">Trục {i} · {h(axis_self.AXES[i][0])}</a>',titles,f'{n}/{total}' if total else 'Không có nhiệm vụ',f'{earned:.2f}',f'{maximum:.2f}'])
   common=e['common'] if cc.read(c,e) else None
   body+='<div class="stats summary-scores">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+'</div>'
-  body+='<section class="panel"><h2>Tổng hợp và gửi duyệt</h2>'+table(['Trục','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
+  body+='<section class="panel"><h2>Tổng hợp và gửi duyệt</h2>'+table(['Trục','Công việc đã lưu','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
   body+='<section class="panel"><h2>Tiêu chí chung (30 điểm)</h2><p>Điểm đã lưu: '+h(e['common'] if cc.read(c,e) else 'Chưa chấm chi tiết')+'</p><a class="btn secondary" href="/eval/'+str(eid)+'?part=common">Mở phiếu tiêu chí chung</a></section>'
   ready=calc['ready'] and cc.read(c,e) is not None and e['common'] is not None and e['department'] is not None and all(counts(i)[0]==counts(i)[1] for i in range(1,7))
   body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'</p>'
@@ -249,7 +253,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section><section class="panel"><h2>XUẤT EXCEL HỒ SƠ ĐÁNH GIÁ</h2><p class="muted">Xuất dữ liệu đã lưu; bản nháp vẫn có thể tải xuống để kiểm tra.</p>'+pe.export_buttons(eid)+'</section>'
  n,total=counts(step);body+=f'<div class="axis-content" data-axis="{step}">'+axis_self.intro(step)
  body+=f'<div class="axis-progress"><span><b>{n}/{total}</b> công việc đủ dữ liệu</span><span>KPI trục: <b>{sum(z["kpi"] for t,z in grouped[step]):.2f}/{sum(z["max"] for t,z in grouped[step]):.2f}</b></span></div><div class="axis-task-list">'
- if grouped[step]:body+='<h3>Công việc đã lưu</h3>'
+ if grouped[step]:body+='<h3 class="saved-work-heading">CÔNG VIỆC ĐÃ LƯU ('+str(len(grouped[step]))+')</h3>'
  for i,(t,z) in enumerate(grouped[step],1):
   tid=t['id'];ready=bool(z['ready'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note']))
   status='Đã dừng' if t['cancelled'] else 'Đã lưu đủ dữ liệu' if ready else 'Cần bổ sung'
