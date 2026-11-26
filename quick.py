@@ -45,23 +45,40 @@ def prior(c,e,axis):
  if not prev:return None,[]
  return prev,c.execute('SELECT * FROM tasks WHERE evaluation=? AND axis=? AND cancelled=0 ORDER BY id',(prev['id'],axis)).fetchall()
 
+def suggestions(c,e,axis):
+ from axis_self import choices
+ from hashlib import sha256
+ known={normalize(t['title']) for t in templates(c,e,axis)}
+ known.update(normalize(t['title']) for t in c.execute('SELECT title FROM tasks WHERE evaluation=?',(e['id'],)))
+ return [(sha256(normalize(title).encode()).hexdigest()[:24],title) for title in choices(c,axis) if normalize(title) not in known]
+
+def picker(c,e,csrf,axis,rows):
+ from app import h,form,check
+ existing={(normalize(t['title']),normalize(t['source'])) for t,z in rows}
+ ts=[t for t in templates(c,e,axis) if (normalize(t['title']),normalize(t['source'])) not in existing]
+ opts=suggestions(c,e,axis)
+ out='<section class="axis-picker" id="axis-picker"><h3>CHỌN CÁC CÔNG VIỆC ĐÃ THỰC HIỆN</h3>'
+ fields='<input type="hidden" name="axis" value="'+str(axis)+'">'
+ if ts or opts:
+  fields+='<div class="axis-pick-list">'
+  for t in ts:fields+=check(t['title']+' · Nhóm '+str(t['grp'])+' · SL '+str(t['qty']),'tpl_'+str(t['id']))
+  for i,title in opts:fields+=check(title,'sug_'+str(i))
+  fields+='</div>'
+  out+=form('/action/quick_add/'+str(e['id']),csrf,fields,'Thêm công việc đã chọn',extra='class="axis-pick-form"')
+ else:out+='<p class="muted">Không còn công việc trong danh mục chưa chọn.</p>'
+ return out+'</section>'
+
 def panel(c,e,csrf,axis,rows):
  from app import h,form,check
- ts=templates(c,e,axis);existing={(normalize(t['title']),normalize(t['source'])) for t,z in rows}
- ts=[t for t in ts if (normalize(t['title']),normalize(t['source'])) not in existing]
  prev,old=prior(c,e,axis)
- old=[t for t in old if not any(normalize(t['title'])==normalize(x['title']) for x,z in rows)]
+ old=[t for t in old if t['source'] and t['product'] and not any(normalize(t['title'])==normalize(x['title']) for x,z in rows)]
  items=available(c,e)
- out='<details class="quick-panel"><summary><b>Nhập nhanh công việc</b><span>Chọn nhiều · Sao chép · Xác nhận</span></summary><div class="quick-body">'
- if ts:
-  fields='<input type="hidden" name="axis" value="'+str(axis)+'">'+''.join(check('Chọn · '+t['title']+' · '+t['product']+' · Nhóm '+str(t['grp'])+' · SL '+str(t['qty'])+' · '+t['source'],'tpl_'+str(t['id'])) for t in ts)
-  out+='<h3>Chọn nhiệm vụ chuẩn</h3>'+form('/action/quick_add/'+str(e['id']),csrf,fields,'Thêm các công việc đã chọn')
- else:out+='<p class="muted">Chưa có nhiệm vụ chuẩn chưa chọn trong trục này. Có thể nhập riêng hoặc đề nghị tổ trưởng bổ sung danh mục.</p>'
+ out='<details class="quick-panel"><summary><b>Nhập nhanh công việc</b><span>Sao chép · Xác nhận hàng loạt</span></summary><div class="quick-body">'
  if old:
   fields='<input type="hidden" name="axis" value="'+str(axis)+'">'+''.join(check(t['title']+' · '+t['product'],'old_'+str(t['id'])) for t in old)+check('Xác nhận tên, sản phẩm, nhóm, số lượng và căn cứ vẫn phù hợp quý này','confirmed')
   out+='<h3>Sao chép từ quý trước</h3><p class="muted">Không sao chép kết quả, minh chứng hoặc điểm. Hạn đặt lại cuối quý hiện tại; rà soát nếu có hạn riêng.</p>'+form('/action/quick_copy/'+str(e['id']),csrf,fields,'Sao chép công việc đã chọn')
  cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
- candidates=[t for t,z in rows if not t['cancelled'] and t['done'] is None and t['corrections'] is None and not t['finish'] and (t['effective_due'] or t['due'])==cutoff and t['late_override'] is None]
+ candidates=[t for t,z in rows if t['source'] and t['product'] and not t['cancelled'] and t['done'] is None and t['corrections'] is None and not t['finish'] and (t['effective_due'] or t['due'])==cutoff and t['late_override'] is None]
  if candidates:
   fields='<input type="hidden" name="axis" value="'+str(axis)+'">'
   for t in candidates:
@@ -72,6 +89,28 @@ def panel(c,e,csrf,axis,rows):
   fields+=check('Tôi xác nhận các công việc đã chọn hoàn thành đủ số lượng, đúng hạn, không phải chỉnh sửa; minh chứng đã chọn thực sự liên quan.','confirmed')
   out+='<h3>Xác nhận kết quả hàng loạt</h3>'+form('/action/quick_done/'+str(e['id']),csrf,fields,'Lưu kết quả đã xác nhận')
  return out+'</div></details>'
+
+def inline_evidence(c,e,t):
+ from app import check
+ items=available(c,e);have={r['id'] for r in linked(c,t['id'])}
+ if not items:return ''
+ matches=[r for r in items if normalize(r['task_title'])==normalize(t['title']) or r['id'] in have]
+ rest=[r for r in items if r['id'] not in {x['id'] for x in matches}]
+ def options(rs):return ''.join(check(r['title']+(' · '+r['reference'] if r['reference'] else ''),'ev_'+str(r['id']),r['id'] in have) for r in rs)
+ out='<input type="hidden" name="inline_evidence" value="1"><div class="inline-evidence"><b>Minh chứng từ kho</b>'
+ if matches:out+=options(matches)
+ if rest:out+='<details><summary>Chọn minh chứng khác</summary>'+options(rest)+'</details>'
+ return out+'<small>Chỉ tích minh chứng thực sự liên quan; bấm Lưu công việc để xác nhận.</small></div>'
+
+def save_inline(c,u,e,t,f):
+ from app import fail
+ if not f.get('inline_evidence'):return
+ allowed={r['id'] for r in available(c,e)}
+ wanted={int(k[3:]) for k in f.keys() if k.startswith('ev_') and k[3:].isdigit() and f.get(k)}
+ if not wanted<=allowed:fail('Minh chứng ngoài phạm vi.',403)
+ c.execute('DELETE FROM evidence_links WHERE task=?',(t['id'],))
+ for k in wanted:c.execute('INSERT INTO evidence_links VALUES(?,?)',(t['id'],k))
+ audit(c,u['id'],'Liên kết minh chứng',e['id'],str(t['id']))
 
 def evidence_form(c,e,t,csrf):
  from app import h,form,check
@@ -155,24 +194,29 @@ async def action(c,u,f,action,obj):
   if not selected:fail('Chưa chọn công việc.')
   refs=available(c,e);allowed={r['id']:r for r in refs}
   for t in selected:
-   if t['done'] is not None or t['corrections'] is not None or t['finish'] or (t['effective_due'] or t['due'])!=cutoff or t['late_override'] is not None:fail('Công việc đã có kết quả hoặc có hạn riêng; mở từng công việc để rà soát.')
+   if not t['source'] or not t['product'] or t['done'] is not None or t['corrections'] is not None or t['finish'] or (t['effective_due'] or t['due'])!=cutoff or t['late_override'] is not None:fail('Công việc đã có kết quả hoặc có hạn riêng; mở từng công việc để rà soát.')
    prefix='link_'+str(t['id'])+'_'
    ids={int(k[len(prefix):]) for k in f.keys() if k.startswith(prefix) and k[len(prefix):].isdigit() and f.get(k)}
    if any(k not in allowed or normalize(allowed[k]['task_title'])!=normalize(t['title']) for k in ids):fail('Minh chứng ngoài phạm vi hoặc không phù hợp.',403)
    for k in ids:c.execute('INSERT OR IGNORE INTO evidence_links VALUES(?,?)',(t['id'],k))
    c.execute('UPDATE tasks SET done=qty,corrections=0,finish=? WHERE id=?',(cutoff,t['id']));audit(c,uid,'Xác nhận kết quả hàng loạt',obj,t['title'])
  else:
-  if action=='quick_add':chosen=[t for t in templates(c,e,axis) if f.get('tpl_'+str(t['id']))]
+  if action=='quick_add':
+   chosen=[t for t in templates(c,e,axis) if f.get('tpl_'+str(t['id']))]
+   chosen+= [dict(title=title,source='',product='',grp=1,qty=1,due=cutoff) for i,title in suggestions(c,e,axis) if f.get('sug_'+str(i))]
   elif action=='quick_copy':
    if not f.get('confirmed'):fail('Cần rà soát nhiệm vụ quý trước.')
-   _,old=prior(c,e,axis);chosen=[t for t in old if f.get('old_'+str(t['id']))]
+   _,old=prior(c,e,axis);chosen=[t for t in old if t['source'] and t['product'] and f.get('old_'+str(t['id']))]
   else:fail('Thao tác không tồn tại.',404)
   if not chosen:fail('Chưa chọn nhiệm vụ hợp lệ.')
   if DEMO and one(c,'SELECT count(*) FROM tasks')[0]+len(chosen)>400:fail('Demo giới hạn 400 nhiệm vụ.')
   existing={(normalize(t['title']),normalize(t['source'])) for t in c.execute('SELECT title,source FROM tasks WHERE evaluation=?',(obj,))}
+  first=None
   for t in chosen:
    key=(normalize(t['title']),normalize(t['source']))
    if key in existing:continue
    tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due) VALUES(?,?,?,?,?,?,?,?)',(obj,t['title'],t['source'],axis,t['grp'],t['product'],t['qty'],cutoff if action=='quick_copy' else t['due'])).lastrowid
+   if first is None:first=tid
    existing.add(key);audit(c,uid,'Tự khai nhiệm vụ',obj,str(tid));audit(c,uid,'Nhập nhanh nhiệm vụ',obj,t['title'])
+  if first is not None:return redirect('/eval/'+str(obj)+'?axis='+str(axis)+'&focus='+str(first)+'#axis-workspace')
  return redirect('/eval/'+str(obj)+'?axis='+str(axis)+'#axis-workspace')
