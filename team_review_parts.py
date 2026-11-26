@@ -30,8 +30,8 @@ def approve(c,u,e,f,calc):
   notes='; '.join(('Phụ lục: ' if k=='common' else 'KPI: ')+saved[k]['note'] for k in ('common','kpi') if saved[k]['note'])
   c.execute('UPDATE evaluations SET status="team",team_common=?,note=? WHERE id=?',(saved['common']['score'],notes or 'Tổ trưởng đã duyệt phụ lục và KPI.',e['id']))
   audit(c,u['id'],'Tổ đã duyệt',e['id'],'Đủ hai phần, chuyển BGH')
-  return '/eval/'+str(e['id'])+'#team-review-progress'
- return '/eval/'+str(e['id'])+('#team-kpi' if part=='common' else '#team-approve')
+  return '/eval/'+str(e['id'])+'#review-finished'
+ return '/eval/'+str(e['id'])+('?section=kpi#team-kpi' if part=='common' else '?section=common#team-approve')
 
 def progress(e,saved):
  done=2 if e['status'] in ('team','approved') and e['team_common'] is not None else len(saved) if e['status']=='submitted' else 0
