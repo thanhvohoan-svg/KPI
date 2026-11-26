@@ -71,9 +71,17 @@ def read_quarter(f,key,e,empty=False,due=None):
  return datefield(f,key+'_exact' if value=='exact' else key,empty and value!='exact')
 
 def metadata(c,e,axis,t=None):
- from app import field,textarea,select
+ from app import field,textarea,select,h
+ from work_suggestions import catalogue
+ import json
  t=t or {}
- return title_fields(c,axis,t)+'<div class="twocol work-meta">'+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+field('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500" placeholder="Tên sản phẩm hoặc kết quả dự kiến"')+'</div>'+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+quarter_field(e,'Thời hạn hoàn thành','due',t.get('due'))+'</div>'
+ current=t.get('title','')
+ data=catalogue(c,e,axis,choices(c,axis,current)+['__other__'])
+ def suggest(kind,label,value):
+  options=data.get(current,data['__other__'])[kind] if current else []
+  menu='<select class="field-suggestions" data-suggest="'+kind+'" aria-label="Gợi ý '+h(label.lower())+'"><option value="">Chọn gợi ý</option>'+''.join('<option value="'+h(x['value'])+'">'+h(x['label'])+'</option>' for x in options)+'</select>'
+  return '<div class="suggest-field">'+field(label,kind,value,attrs='required maxlength="500"')+menu+'</div>'
+ return '<div class="work-meta-fields" data-work-suggestions="'+h(json.dumps(data,ensure_ascii=False))+'">'+title_fields(c,axis,t)+'<div class="twocol work-meta">'+suggest('source','Căn cứ giao nhiệm vụ',t.get('source',''))+suggest('product','Sản phẩm cụ thể',t.get('product',''))+'</div>'+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+quarter_field(e,'Thời hạn hoàn thành','due',t.get('due'))+'</div></div>'
 
 def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
