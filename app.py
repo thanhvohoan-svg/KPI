@@ -70,7 +70,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=215"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.15</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=216"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.16</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -260,8 +260,8 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   body+=f'<details class="task work-card" name="axis-work"><summary><span class="work-name"><b>Công việc {i}: {h(t["title"])}</b><small>{status} · {h(t["done"] if t["done"] is not None else "—")}/{t["qty"]} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</small></span><span class="work-open">Mở / sửa</span></summary>'
   if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
   else:
-   body+=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(t["effective_due"] or t["due"])} · Nhóm {t["grp"]}</p>'
-   fields='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])
+   body+=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))} · Nhóm {t["grp"]}</p>'
+   fields='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True)+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])
    body+=form(f'/action/task/{tid}',csrf,fields,'Lưu và thu gọn công việc',extra='data-work-form')
    body+=f'<p class="scoreline">Điểm đã lưu: A {z["a"]:.2f} · B {z["b"]:.2f} · C {z["c"]:.2f} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</p>'
    attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,))
@@ -274,7 +274,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
  body+='<div class="axis-finish"><p class="muted">Đã nhập hết công việc của trục? Chọn hoàn thành để chuyển tiếp.</p><div class="axis-actions">'
  if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
  body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></div></section>'
- body+='<script src="/static/axis.js?v=15" defer></script>'
+ body+='<script src="/static/axis.js?v=216" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
@@ -322,11 +322,11 @@ def eval_get(eid:int,r:Request):
      if last_axis is not None:body+='</div></details>'
      last_axis=t['axis'];axis_tasks=[(a,b) for a,b in calc['rows'] if a['axis']==last_axis]
      body+=f'<details class="team-axis"><summary><b>TRỤC {last_axis} · {h(axis_self.AXES[last_axis][0])}</b><span>{len(axis_tasks)} công việc · {sum(b["kpi"] for a,b in axis_tasks):.2f}/{sum(b["max"] for a,b in axis_tasks):.2f} điểm</span></summary><div class="team-axis-content">'
-    tid=t['id']; attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,)); body+=f'<details class="task"'+('' if member_view else ' open')+f'><summary><b>{h(t["title"])}</b><span>Trục {t["axis"]} · Nhóm {t["grp"]} · {z["actual"]:.2f}/{z["base"]:.0f} điểm</span></summary><p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(t["effective_due"] or t["due"])}</p>'
+    tid=t['id']; attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,)); body+=f'<details class="task"'+('' if member_view else ' open')+f'><summary><b>{h(t["title"])}</b><span>Trục {t["axis"]} · Nhóm {t["grp"]} · {z["actual"]:.2f}/{z["base"]:.0f} điểm</span></summary><p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))}</p>'
     if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
     else:
      if editable:body+=form(f'/action/task/{tid}',csrf,'<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note']),'Lưu kết quả nhiệm vụ')+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data"')
-     else:body+=f'<p>Hoàn thành: {h(t["done"])} / {t["qty"]} · Chỉnh sửa: {h(t["corrections"])} · Ngày hoàn thành: {h(t["finish"])} · Chậm: {z["late"]} ngày làm việc</p>'+('' if member_view else f'<p>Minh chứng: {h(t["evidence"])}</p><p>Vượt yêu cầu: {h(t["outstanding_note"])}</p>')
+     else:body+=f'<p>Hoàn thành: {h(t["done"])} / {t["qty"]} · Chỉnh sửa: {h(t["corrections"])} · Ngày hoàn thành: {h(axis_self.date_label(e,t["finish"]))} · Chậm: {z["late"]} ngày làm việc</p>'+('' if member_view else f'<p>Minh chứng: {h(t["evidence"])}</p><p>Vượt yêu cầu: {h(t["outstanding_note"])}</p>')
      body+=f'<p class="scoreline">A: {z["a"]:.2f} · B: {z["b"]:.2f} · C: {z["c"]:.2f} · KPI: {z["kpi"]:.2f}/ {z["max"]:.2f}</p>'
     if attachments and not member_view:body+='<p>Tệp: '+ ' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
     if review and e['status'] in ('draft','returned'):
@@ -426,7 +426,7 @@ async def actions(r:Request,action:str='',obj:int=0):
     for t in tasks:
      tid=t['id'];pre=f't{tid}_'
      if pre+'done' not in f or pre+'corrections' not in f:fail('Danh sách nhiệm vụ thay đổi. Vui lòng mở lại trục.')
-     done=integer(f,pre+'done',0,1000000,not advance);cor=integer(f,pre+'corrections',0,1000000,not advance);finish=datefield(f,pre+'finish',True);evidence=optional(f,pre+'evidence');out=int(bool(f.get(pre+'outstanding')));on=optional(f,pre+'outstanding_note')
+     done=integer(f,pre+'done',0,1000000,not advance);cor=integer(f,pre+'corrections',0,1000000,not advance);finish=axis_self.read_quarter(f,pre+'finish',e,True,t['effective_due'] or t['due']);evidence=optional(f,pre+'evidence');out=int(bool(f.get(pre+'outstanding')));on=optional(f,pre+'outstanding_note')
      if finish and finish>end_of_quarter(e['year'],e['quarter']).isoformat():fail('Ngày hoàn thành sau ngày kết thúc quý: '+t['title'])
      if advance and ((done>=t['qty'] and not finish) or not evidence or (out and not on)):fail('Cần đủ ngày hoàn thành (nếu đạt số lượng), minh chứng và mô tả vượt yêu cầu: '+t['title'])
      c.execute('UPDATE tasks SET done=?,corrections=?,finish=?,evidence=?,outstanding=?,outstanding_note=? WHERE id=?',(done,cor,finish,evidence,out,on,tid))
@@ -444,9 +444,9 @@ async def actions(r:Request,action:str='',obj:int=0):
      own_edit(u,e)
      if t['cancelled']:fail('Nhiệm vụ đã dừng.')
      if action=='task':
-      done=integer(f,'done',0,1000000);cor=integer(f,'corrections',0,1000000);finish=datefield(f,'finish',True);evidence=optional(f,'evidence');out=int(bool(f.get('outstanding')));on=optional(f,'outstanding_note')
+      done=integer(f,'done',0,1000000);cor=integer(f,'corrections',0,1000000);finish=axis_self.read_quarter(f,'finish',e,True,t['effective_due'] or t['due']);evidence=optional(f,'evidence');out=int(bool(f.get('outstanding')));on=optional(f,'outstanding_note')
       if finish and finish>end_of_quarter(e['year'],e['quarter']).isoformat():fail('Ngày hoàn thành sau ngày kết thúc quý. Chỉ nhập kết quả tại thời điểm chốt quý.')
-      if done>=t['qty'] and not finish:fail('Cần ngày hoàn thành khi đủ số lượng.')
+      if done>=t['qty'] and not finish:fail('Cần thời gian hoàn thành khi đủ số lượng.')
       if out and not on:fail('Cần mô tả kết quả vượt yêu cầu.')
       c.execute('UPDATE tasks SET done=?,corrections=?,finish=?,evidence=?,outstanding=?,outstanding_note=? WHERE id=?',(done,cor,finish,evidence,out,on,obj));audit(c,uid,'Lưu kết quả',e['id'],t['title'])
      else:
