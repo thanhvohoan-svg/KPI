@@ -50,15 +50,15 @@ def title_fields(c,axis,t):
 def quarter_label(e):
  return 'Quý '+('I','II','III','IV')[e['quarter']-1]+'/'+str(e['year'])
 
-def date_label(e,value):
+def date_label(e,value,due=None):
  if not value:return 'Chưa hoàn thành'
- return quarter_label(e) if value==end_of_quarter(e['year'],e['quarter']).isoformat() else str(value)
+ return quarter_label(e) if value==end_of_quarter(e['year'],e['quarter']).isoformat() and (due is None or due==value) else str(value)
 
-def quarter_field(e,label,name,value=None,optional=False):
+def quarter_field(e,label,name,value=None,optional=False,due=None):
  from app import field,select
  cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
- mode='quarter' if value==cutoff or (not value and not optional) else 'exact' if value else ''
- options=([('','Chưa hoàn thành')] if optional else [])+[('quarter',quarter_label(e)),('exact','Ngày cụ thể')]
+ mode='quarter' if (value==cutoff and (due is None or due==cutoff)) or (not value and not optional) else 'exact' if value else ''
+ options=([('','Chưa hoàn thành')] if optional else [])+([('quarter',quarter_label(e))] if due is None or due==cutoff else [])+[('exact','Ngày cụ thể')]
  return '<div class="quarter-field" data-quarter-field>'+select(label,name,options,mode,attrs='data-quarter-choice')+'<div data-quarter-date>'+field('Ngày cụ thể',name+'_exact',value if mode=='exact' else '',kind='date',attrs='data-quarter-exact')+'</div></div>'
 
 def read_quarter(f,key,e,empty=False,due=None):
