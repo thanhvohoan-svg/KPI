@@ -11,6 +11,7 @@ import leader_ui
 import excel_preview
 import team_review_parts as tr
 import quick
+import evidence_upload as eu
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -72,7 +73,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=221"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.21</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=222"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.22</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -122,7 +123,7 @@ def error_page(msg,status=400):
 async def error_handler(r,e):return error_page(e.detail,e.status_code)
 @app.middleware('http')
 async def security(r,call_next):
- if int(r.headers.get('content-length','0') or 0)>6*1024*1024:return error_page('Tệp quá lớn (tối đa 5 MB).',413)
+ if int(r.headers.get('content-length','0') or 0)>eu.REQUEST_LIMIT:return error_page('Tổng dung lượng gửi vượt giới hạn máy chủ.',413)
  res=await call_next(r);res.headers['X-Content-Type-Options']='nosniff';res.headers['X-Frame-Options']='DENY';res.headers['Referrer-Policy']='no-referrer';res.headers['Content-Security-Policy']="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'none'";res.headers['Cache-Control']='no-store';return res
 @app.get('/login')
 def login_get(r:Request):
@@ -268,15 +269,11 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
     fields='<input type="hidden" name="edit_meta" value="1">'+axis_self.metadata(c,e,step,data)
    else:
     fields=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))} · Nhóm {t["grp"]}</p>'
-   fields+='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'] if t['corrections'] is not None else 0,'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=None if meta else t['effective_due'] or t['due'])+'</div>'+quick.inline_evidence(c,e,t)+textarea('Minh chứng bổ sung (nếu có)','evidence',t.get('manual_evidence',t['evidence']))+'<details class="work-exception"><summary>Đề xuất vượt yêu cầu (nếu có)</summary>'+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])+'</details><input type="hidden" name="next_after" value="1">'
+   fields+='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'] if t['corrections'] is not None else 0,'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=None if meta else t['effective_due'] or t['due'],default_quarter=t['done'] is None and (t['effective_due'] or t['due'])==end_of_quarter(e['year'],e['quarter']).isoformat())+'</div>'+quick.inline_evidence(c,e,t)+eu.fields(c,t)+'<details class="work-exception"><summary>Đề xuất vượt yêu cầu (nếu có)</summary>'+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])+'</details><input type="hidden" name="next_after" value="1">'
+   fields+=quick.links_html(c,tid)
    delete_button=f'<button type="submit" class="work-delete-btn" form="delete-work-{tid}">Xóa công việc</button>' if meta else ''
-   body+=f'<form method="post" action="/action/task/{tid}" data-work-form><input type="hidden" name="csrf" value="{h(csrf)}">'+fields+'<div class="work-actions"><button type="submit">Lưu công việc</button>'+delete_button+'</div></form>'
+   body+=f'<form method="post" action="/action/task/{tid}" enctype="multipart/form-data" data-work-form><input type="hidden" name="csrf" value="{h(csrf)}">'+fields+'<div class="work-actions"><button type="submit">Lưu công việc</button>'+delete_button+'</div></form>'
    if meta:body+=f'<form method="post" action="/action/self_delete/{tid}" id="delete-work-{tid}" data-delete-work hidden><input type="hidden" name="csrf" value="{h(csrf)}"><input type="hidden" name="confirmed" value=""></form>'
-   body+=f'<p class="scoreline">Điểm đã lưu: A {z["a"]:.2f} · B {z["b"]:.2f} · C {z["c"]:.2f} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</p>'
-   attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,))
-   body+='<details><summary>Đính kèm minh chứng</summary>'+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data" data-work-form')
-   if attachments:body+='<p>Tệp: '+' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
-   body+='</details>'+quick.links_html(c,tid)
   body+='</details>'
  body+='</div>'
  body+=quick.panel(c,e,csrf,step,grouped[step])
@@ -284,7 +281,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
  body+='<div class="axis-finish"><div class="axis-actions">'
  if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
  body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></div></section>'
- body+='<script src="/static/axis.js?v=221" defer></script>'
+ body+='<script src="/static/axis.js?v=222" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
@@ -335,7 +332,7 @@ def eval_get(eid:int,r:Request):
     tid=t['id']; attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,)); body+=f'<details class="task"'+('' if member_view else ' open')+f'><summary><b>{h(t["title"])}</b><span>Trục {t["axis"]} · Nhóm {t["grp"]} · {z["actual"]:.2f}/{z["base"]:.0f} điểm</span></summary><p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))}</p>'
     if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
     else:
-     if editable:body+=form(f'/action/task/{tid}',csrf,'<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note']),'Lưu kết quả nhiệm vụ')+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data"')
+     if editable:body+=form(f'/action/task/{tid}',csrf,'<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note']),'Lưu kết quả nhiệm vụ')+form(f'/action/upload/{tid}',csrf,field('Đính kèm minh chứng','file',kind='file',attrs='required multiple'),'Đính kèm',extra='enctype="multipart/form-data"')
      else:body+=f'<p>Hoàn thành: {h(t["done"])} / {t["qty"]} · Chỉnh sửa: {h(t["corrections"])} · Ngày hoàn thành: {h(axis_self.date_label(e,t["finish"],t["effective_due"] or t["due"]))} · Chậm: {z["late"]} ngày làm việc</p>'+('' if member_view else f'<p>Minh chứng: {h(t["evidence"])}</p><p>Vượt yêu cầu: {h(t["outstanding_note"])}</p>')
      body+=f'<p class="scoreline">A: {z["a"]:.2f} · B: {z["b"]:.2f} · C: {z["c"]:.2f} · KPI: {z["kpi"]:.2f}/ {z["max"]:.2f}</p>'
     if attachments and not member_view:body+='<p>Tệp: '+ ' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
@@ -357,7 +354,6 @@ def eval_get(eid:int,r:Request):
   if e['self_snapshot'] and not member_view:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
   if editable:body+='</div></div>'
   if member_view:return layout('Xem và duyệt hồ sơ',body,u,csrf,compact=True)
-  hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal or member_view else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal or member_view else '</section>')
   return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal or leader_view)
 @app.post('/password')
 @app.post('/logout')
@@ -465,14 +461,9 @@ async def actions(r:Request,action:str='',obj:int=0):
       if done>=t['qty'] and not finish:fail('Cần thời gian hoàn thành khi đủ số lượng.')
       if out and not on:fail('Cần mô tả kết quả vượt yêu cầu.')
       c.execute('UPDATE tasks SET done=?,corrections=?,finish=?,evidence=?,outstanding=?,outstanding_note=? WHERE id=?',(done,cor,finish,evidence,out,on,obj));audit(c,uid,'Lưu kết quả',e['id'],t['title'])
+      eu.save_files(c,u,e,obj,f)
      else:
-      file=f.get('file');
-      if not isinstance(file,UploadFile):fail('Chưa chọn tệp.')
-      name=Path((file.filename or '').replace('\\','/')).name[:180];data=await file.read(5*1024*1024+1);await file.close()
-      if Path(name).suffix.lower() not in ('.pdf','.docx','.xlsx','.png','.jpg','.jpeg','.txt') or not data or len(data)>5*1024*1024:fail('Tệp không hợp lệ (tối đa 5 MB).')
-      if DEMO and (Path(name).suffix.lower()!='.txt' or len(data)>100000 or one(c,'SELECT COALESCE(SUM(length(body)),0) FROM attachments')[0]+len(data)>1000000):fail('Demo chỉ nhận tệp TXT giả lập tối đa 100 KB, tổng 1 MB mỗi phiên.')
-      if one(c,'SELECT count(*) FROM attachments WHERE task=?',(obj,))[0]>=10:fail('Tối đa 10 tệp mỗi nhiệm vụ.')
-      c.execute('INSERT INTO attachments(task,filename,body) VALUES(?,?,?)',(obj,name,data));audit(c,uid,'Đính kèm minh chứng',e['id'],name)
+      eu.save_files(c,u,e,obj,f,required=True)
     if action=='task' and f.get('next_after'):
      nxt=next((x['id'] for x,z in result(c,e)['rows'] if x['axis']==t['axis'] and x['id']!=obj and not x['cancelled'] and (not z['ready'] or not x['source'] or not x['product'] or not x['evidence'] or (x['outstanding'] and not x['outstanding_note']))),None)
      if nxt:return redirect(f'/eval/{e["id"]}?axis={t["axis"]}&focus={nxt}#axis-workspace')
