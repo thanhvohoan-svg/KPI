@@ -387,7 +387,8 @@ class DemoTest(unittest.TestCase):
   self.assertIn('data-suggest="product"',page)
   self.assertIn('QĐ DEMO 214 (giả lập)',page)
   self.assertIn('Hồ sơ, sổ chủ nhiệm',page)
-  self.assertIn('Loại văn bản: Quyết định phân công nhiệm vụ giảng dạy và chủ nhiệm lớp',page)
+  self.assertIn('Quyết định phân công nhiệm vụ giảng dạy và chủ nhiệm lớp',page)
+  self.assertNotIn('Loại văn bản:',page)
   self.assertIn('Biên bản sinh hoạt',page)
   import json,html
   data=json.loads(html.unescape(re.search(r'data-work-suggestions="([^"]+)"',page).group(1)))
