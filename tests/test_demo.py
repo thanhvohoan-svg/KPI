@@ -113,9 +113,14 @@ class DemoTest(unittest.TestCase):
  def test_compact_teacher_home(self):
   c=self.client();self.login(c,'giaovien')
   landing=c.get('/',follow_redirects=False)
-  self.assertEqual(landing.status_code,303)
-  self.assertEqual(landing.headers['location'],'/eval/1')
-  page=c.get('/').text
+  self.assertEqual(landing.status_code,200)
+  self.assertIn('CHỌN KỲ ĐÁNH GIÁ',landing.text)
+  for q in range(1,5):self.assertIn('QUÝ '+str(q),landing.text)
+  self.assertIn('href="/my-period/1"',landing.text)
+  self.assertIn('KHỞI TẠO HỒ SƠ',c.get('/my-period/1').text)
+  self.post(c,'/action/period_start/1',{'mode':'new'},'/my-period/1')
+  self.assertEqual(c.get('/my-period/1',follow_redirects=False).headers['location'],'/eval/1')
+  page=c.get('/eval/1').text
   self.assertIn('class="header-account"',page)
   self.assertIn('<strong>Giáo viên Tin học mẫu</strong>',page)
   self.assertNotIn('Danh sách hồ sơ',page)
@@ -306,7 +311,10 @@ class DemoTest(unittest.TestCase):
   self.logout(c);self.login(c,'bangiamhieu')
   self.post(c,'/action/period',{'year':'2026','quarter':'4','mode':'task','confirmed':'1'},'/manage')
   self.logout(c);self.login(c,'giaovien')
-  landing=c.get('/',follow_redirects=False);path=landing.headers['location']
+  landing=c.get('/').text
+  target=re.findall(r'href="/my-period/(\d+)"',landing)[-1]
+  self.post(c,'/action/period_start/'+target,{'mode':'new'},'/my-period/'+target)
+  path='/eval/'+target
   page=c.get(path+'?axis=1').text
   self.assertNotIn('Nhập nhanh công việc',page)
   self.assertNotIn('name="old_',page)
@@ -432,4 +440,52 @@ class DemoTest(unittest.TestCase):
   self.assertNotIn('name="outstanding" value="1" checked',page)
   self.post(c,'/action/self_delete/'+tid,{'confirmed':'1'},'/eval/1')
   self.assertNotIn('ket-qua.pdf',c.get('/eval/1?axis=1').text)
+ def test_period_inheritance(self):
+  c=self.client();self.login(c,'giaovien')
+  from axis_self import SUGGESTIONS
+  old=[]
+  for axis in range(1,7):
+   title=SUGGESTIONS[axis][0]
+   data={'axis':str(axis),'choice':title,'source':'Căn cứ cũ '+str(axis),'product':'Sản phẩm '+str(axis),'grp':'2','qty':'3','due':'quarter','done':'3','corrections':'2','finish':'quarter','evidence':'Minh chứng quý cũ'}
+   self.post(c,'/action/self_add/1',data,'/eval/1')
+   old.append(re.search(r'/action/task/(\d+)',c.get('/eval/1?axis='+str(axis)).text).group(1))
+  self.logout(c);self.login(c,'bangiamhieu')
+  self.post(c,'/action/period',{'year':'2026','quarter':'4','mode':'task','confirmed':'1'},'/manage')
+  self.logout(c);self.login(c,'giaovien')
+  landing=c.get('/').text
+  dest=re.findall(r'href="/my-period/(\d+)"',landing)[-1]
+  self.assertNotEqual(dest,'1')
+  start='/my-period/'+dest
+  page=c.get(start).text
+  self.assertIn('Kế thừa công việc từ kỳ đánh giá trước',page)
+  for tid in old:self.assertRegex(page,r'name="task_'+tid+r'" value="1" checked')
+  data={'mode':'copy','source':'1','confirmed':'1',**{'task_'+tid:'1' for tid in old}}
+  self.post(c,'/action/period_start/'+dest,dict(data,source='2'),start,403)
+  self.post(c,'/action/period_start/'+dest,dict(data,task_999999='1'),start,403)
+  r=self.post(c,'/action/period_start/'+dest,data,start)
+  self.assertEqual(r.headers['location'],'/eval/'+dest+'?axis=1')
+  self.assertEqual(c.get(start,follow_redirects=False).headers['location'],'/eval/'+dest)
+  self.post(c,'/action/period_start/'+dest,data,start,409)
+  for axis in range(1,7):
+   page=c.get('/eval/'+dest+'?axis='+str(axis)).text
+   self.assertIn('Công việc 1: '+SUGGESTIONS[axis][0],page)
+   self.assertIn('Căn cứ cũ '+str(axis),page)
+   self.assertIn('Sản phẩm '+str(axis),page)
+   self.assertNotIn('Minh chứng quý cũ',page)
+   self.assertRegex(page,r'name="done" type="number" value="1"')
+   self.assertRegex(page,r'name="qty" type="number" value="3"')
+   self.assertIn('Quý IV/2026',page)
+   self.assertNotIn('name="outstanding" value="1" checked',page)
+   self.assertNotEqual(re.search(r'/action/task/(\d+)',page).group(1),old[axis-1])
+  page=c.get('/eval/'+dest+'?axis=1').text
+  tid=re.search(r'/action/task/(\d+)',page).group(1)
+  self.post(c,'/action/task/'+tid,{'edit_meta':'1','choice':SUGGESTIONS[1][0],'source':'Căn cứ mới','product':'Sản phẩm mới','grp':'3','qty':'5','due':'quarter','done':'5','corrections':'0','finish':'quarter','evidence':'Minh chứng quý mới'},'/eval/'+dest)
+  self.assertIn('Căn cứ mới',c.get('/eval/'+dest+'?axis=1').text)
+  self.assertNotIn('Căn cứ mới',c.get('/eval/1?axis=1').text)
+  self.assertIn('Minh chứng quý cũ',c.get('/eval/1?axis=1').text)
+  self.post(c,'/action/self_delete/'+tid,{'confirmed':'1'},'/eval/'+dest)
+  self.assertIn('Công việc 1: '+SUGGESTIONS[1][0],c.get('/eval/1?axis=1').text)
+  self.assertNotIn('Công việc 1: '+SUGGESTIONS[1][0],c.get('/eval/'+dest+'?axis=1').text)
+  self.logout(c);self.login(c,'giaovientoan')
+  self.assertEqual(c.get(start).status_code,403)
 if __name__=='__main__':unittest.main(verbosity=2)
