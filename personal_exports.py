@@ -103,7 +103,7 @@ def kpi_sheet(w,c,e,calc,hide_evidence=False):
    for col,val in [(6,t['effective_due'] or t['due']),(12,t['finish'])]:
     if val:
      from axis_self import date_label
-     label=date_label(e,val)
+     label=date_label(e,val,(t['effective_due'] or t['due']) if col==12 else None)
      if label.startswith('Quý '):sh.write(r,col,label,f['center'])
      else:sh.write_datetime(r,col,dt.datetime.fromisoformat(val),f['date'])
    put(sh,r,8,vals[8],f['pct'])
