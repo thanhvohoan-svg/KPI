@@ -54,10 +54,10 @@ def date_label(e,value,due=None):
  if not value:return 'Chưa hoàn thành'
  return quarter_label(e) if value==end_of_quarter(e['year'],e['quarter']).isoformat() and (due is None or due==value) else str(value)
 
-def quarter_field(e,label,name,value=None,optional=False,due=None):
+def quarter_field(e,label,name,value=None,optional=False,due=None,default_quarter=False):
  from app import field,select
  cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
- mode='quarter' if (value==cutoff and (due is None or due==cutoff)) or (not value and not optional) else 'exact' if value else ''
+ mode='quarter' if (value==cutoff and (due is None or due==cutoff)) or (not value and (not optional or default_quarter) and (due is None or due==cutoff)) else 'exact' if value else ''
  options=([('','Chưa hoàn thành')] if optional else [])+([('quarter',quarter_label(e))] if due is None or due==cutoff else [])+[('exact','Ngày cụ thể')]
  return '<div class="quarter-field" data-quarter-field>'+select(label,name,options,mode,attrs='data-quarter-choice')+'<div data-quarter-date>'+field('Ngày cụ thể',name+'_exact',value if mode=='exact' else '',kind='date',attrs='data-quarter-exact')+'</div></div>'
 
@@ -77,9 +77,10 @@ def metadata(c,e,axis,t=None):
 
 def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
- fields=metadata(c,e,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+quarter_field(e,'Thời gian hoàn thành thực tế','finish',optional=True)+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
+ import evidence_upload as eu
+ fields=metadata(c,e,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+quarter_field(e,'Thời gian hoàn thành thực tế','finish',optional=True,default_quarter=True)+'</div>'+eu.fields()+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
  opened=' open' if add_next else ''
- return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b class="new-work-title"><svg class="new-work-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nhập thêm công việc {count+1}</b></summary><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
+ return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b class="new-work-title"><svg class="new-work-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nhập thêm công việc {count+1}</b></summary><form method="post" action="/action/self_add/{e["id"]}" enctype="multipart/form-data" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
 
 def delete_panel(c,e,t,csrf):
  from app import form,check
@@ -124,6 +125,8 @@ def action(c,u,f,action,obj):
   done=integer(f,'done',0,1000000,True);cor=integer(f,'corrections',0,1000000,True);finish=read_quarter(f,'finish',e,True,due);ev=optional(f,'evidence');out=int(bool(f.get('outstanding')));note=optional(f,'outstanding_note')
   if finish and finish>cutoff:fail('Ngày hoàn thành sau thời điểm chốt quý.')
   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence,outstanding,outstanding_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due,done,cor,finish,ev,out,note)).lastrowid
+  import evidence_upload as eu
+  eu.save_files(c,u,e,tid,f)
   audit(c,uid,'Tự khai nhiệm vụ',e['id'],str(tid));audit(c,uid,'Nội dung nhiệm vụ tự khai',e['id'],title)
  if action=='self_add' and f.get('next_work')=='1':return redirect(f'/eval/{e["id"]}?axis={axis}&add=1#axis-workspace')
  return redirect(f'/eval/{e["id"]}?axis={axis}')
