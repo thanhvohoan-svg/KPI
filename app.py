@@ -11,6 +11,7 @@ import leader_ui
 import excel_preview
 import team_review_parts as tr
 import quick
+import period_selection as ps
 import evidence_upload as eu
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
@@ -69,11 +70,12 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links=('' if u['role']=='teacher' else '<a href="/">Quản lý tổ</a>' if u['role'] in ('leader','deputy') else '<a href="/">Tổng quan</a>')+('' if DEMO else '<a href="/password">Đổi mật khẩu</a>')
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
+  if u['role'] in ('teacher','leader','deputy'):links+='<a href="/my-periods">Kỳ đánh giá</a>'
   links+='<a href="/quick">Kho minh chứng</a>'
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=226"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.29</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=230"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.30</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -155,10 +157,7 @@ def home(r:Request):
   if u['must_change']:return redirect('/password')
   periods=allrows(c,'SELECT * FROM periods ORDER BY year DESC,quarter DESC'); csrf=s['csrf']
   if not periods:return layout('Tổng quan','<section class="panel">Chưa mở kỳ đánh giá. '+('<a class="btn" href="/manage">Thiết lập kỳ</a>' if can_manage(u) else 'Vui lòng liên hệ Ban Giám hiệu.')+'</section>',u,csrf)
-  if u['role']=='teacher':
-   personal=one(c,'SELECT e.id FROM evaluations e JOIN periods p ON p.id=e.period WHERE e.user=? ORDER BY p.locked ASC,p.year DESC,p.quarter DESC LIMIT 1',(u['id'],))
-   if personal:return redirect(f'/eval/{personal["id"]}')
-   return layout('Hồ sơ cá nhân','<section class="panel">Chưa có hồ sơ đánh giá. Vui lòng liên hệ Ban Giám hiệu.</section>',u,csrf,compact=True)
+  if u['role']=='teacher':return ps.selector(c,u,csrf,r)
   default_pid=next((p['id'] for p in periods if not p['locked']),periods[0]['id']) if u['role'] in ('leader','deputy') else periods[0]['id']
   try:pid=int(r.query_params.get('period',default_pid))
   except ValueError:fail('Kỳ không hợp lệ')
@@ -175,6 +174,20 @@ def home(r:Request):
     k=(e['dept'] or 'Chưa phân tổ',e['cohort']);g=grouped.setdefault(k,[0,0,0]);g[0]+=1;g[1]+=e['status']=='approved' and e['final_level']==LEVELS[1];g[2]+=e['status']=='approved' and e['final_level']==LEVELS[0]
    body+='<section class="panel"><h2>Kiểm soát tỷ lệ xuất sắc</h2><p class="muted">Theo tổ và nhóm tương đồng; số tối đa = làm tròn 20% số HTT đã duyệt. Số chưa duyệt chưa được tính.</p>'+table(['Tổ','Nhóm','Hồ sơ','HTT','Tối đa HTXS','HTXS đã duyệt'],[[h(k[0]),h(k[1]),g[0],g[1],quota(g[1]),g[2]] for k,g in grouped.items()])+'</section>'
   return layout('Tổng quan',body,u,csrf)
+@app.get('/my-periods')
+def personal_periods_get(r:Request):
+ with closing(connect()) as c:
+  u,s=auth(c,r)
+  if not u:return redirect('/login')
+  if u['must_change']:return redirect('/password')
+  return ps.selector(c,u,s['csrf'],r)
+@app.get('/my-period/{eid:int}')
+def personal_period_get(eid:int,r:Request):
+ with closing(connect()) as c:
+  u,s=auth(c,r)
+  if not u:return redirect('/login')
+  if u['must_change']:return redirect('/password')
+  return ps.start(c,u,get_eval(c,u,eid),s['csrf'],r)
 @app.get('/password')
 def password_get(r:Request):
  with closing(connect()) as c:
@@ -297,6 +310,7 @@ def eval_get(eid:int,r:Request):
   if personal:
    if editable:body='<div class="personal-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Phiếu tự đánh giá">'
    else:body=workflow_panel(c,e)
+   body+='<div class="personal-period-bar"><b>Kỳ đánh giá: '+h(ps.label(e))+'</b><a class="btn small secondary" href="/my-periods">Đổi kỳ</a></div>'
    if leader_view:body+=leader_ui.tabs_for_eval(c,u,e,'self')
    if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
   elif member_view:
@@ -420,6 +434,7 @@ async def actions(r:Request,action:str='',obj:int=0):
    if action in ('common_template','common_copy','common_assign'):return cc.admin_action(c,u,f,action,obj)
    if action=='common_detail':
     e=get_eval(c,u,obj);cc.save(c,u,e,f);return redirect(f'/eval/{obj}?part=common')
+   if action=='period_start':return ps.apply(c,u,f,obj)
    if action in ('quick_template','quick_evidence','quick_add','quick_copy','quick_done','quick_link'):return await quick.action(c,u,f,action,obj)
    if action in ('self_add','self_edit','self_delete'):return axis_self.action(c,u,f,action,obj)
    if action=='axis_next':
