@@ -166,7 +166,7 @@ class DemoTest(unittest.TestCase):
   self.assertIn('team-action-disabled" disabled',team.text)
   self.assertNotIn('/eval/1?review=approve',team.text)
   self.assertNotIn('/eval/1?review=return',team.text)
-  self.assertLess(team.text.index('<th>Hồ sơ / Thao tác</th>'),team.text.index('<th>Trạng thái</th>'))
+  self.assertLess(team.text.index('<th>Xếp loại chính thức</th>'),team.text.index('<th>Hồ sơ / Thao tác</th>'))
   self.assertIn('id="team-approve"',c.get('/eval/3?review=approve').text)
   self.assertIn('href="/eval/1"',team.text)
   self.assertIn('href="/eval/2"',team.text) # personal navigation, not a row
