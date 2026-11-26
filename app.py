@@ -354,7 +354,6 @@ def eval_get(eid:int,r:Request):
   if e['self_snapshot'] and not member_view:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
   if editable:body+='</div></div>'
   if member_view:return layout('Xem và duyệt hồ sơ',body,u,csrf,compact=True)
-  hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal or member_view else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal or member_view else '</section>')
   return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal or leader_view)
 @app.post('/password')
 @app.post('/logout')
