@@ -352,4 +352,28 @@ class DemoTest(unittest.TestCase):
   self.assertNotIn('Cần bổ sung ·',page)
   self.assertNotIn('Thông tin nhiệm vụ · Nhóm',page)
   self.post(c,'/action/axis_next/1',{'axis':'1'},'/eval/1')
+ def test_quarter_defaults_and_evidence_files(self):
+  c=self.client();self.login(c,'giaovien')
+  page=c.get('/eval/1?axis=1').text
+  self.assertGreaterEqual(page.count('value="quarter" selected>Quý III/2026'),2)
+  self.assertIn('class="evidence-entry"',page)
+  self.assertNotIn('Điểm đã lưu: A',page)
+  self.assertNotIn('Tệp TXT mẫu',page)
+  ids=re.findall(r'name="tpl_(\d+)"',page)
+  self.assertTrue(ids)
+  r=self.post(c,'/action/quick_add/1',{'axis':'1','tpl_'+ids[0]:'1'},'/eval/1')
+  page=c.get(r.headers['location']).text
+  tid=re.search(r'/action/task/(\d+)',page).group(1)
+  self.assertGreaterEqual(page.count('value="quarter" selected>Quý III/2026'),4)
+  token=self.token(c,'/eval/1?axis=1')
+  data={'csrf':token,'done':'1','corrections':'0','finish':'quarter','evidence':''}
+  r=c.post('/action/task/'+tid,data=data,files=[('file',('bao-cao.pdf',b'%PDF-1.4 demo','application/pdf')),('file',('minh-chung.zip',b'PK demo','application/zip'))],follow_redirects=False)
+  self.assertEqual(r.status_code,303,r.text)
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('bao-cao.pdf',page);self.assertIn('minh-chung.zip',page)
+  files=re.findall(r'/attachment/(\d+)',page)
+  self.assertEqual(len(files),2)
+  self.assertEqual(c.get('/attachment/'+files[0]).content,b'%PDF-1.4 demo')
+  self.logout(c);self.login(c,'giaovientoan')
+  self.assertEqual(c.get('/attachment/'+files[0]).status_code,403)
 if __name__=='__main__':unittest.main(verbosity=2)
