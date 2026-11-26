@@ -105,3 +105,12 @@ header .header-account{display:flex;flex-direction:column;align-items:flex-end;g
 /* V2.14: direct, two-section review */
 .review-identity{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:4px 0 8px;color:#005b00}.review-identity .team-back{margin:0}.review-identity strong{font-size:19px}.review-sections{display:grid;gap:10px}.review-sections .review-part{margin:0;border:1px solid #b4cbb4;border-radius:8px}.review-part>summary{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:13px 16px;background:#e6f3e6;color:#005b00;cursor:pointer;font-size:19px;list-style:none}.review-part>summary::-webkit-details-marker{display:none}.review-part>summary:after{content:'▾';margin-left:4px}.review-part[open]>summary:after{content:'▴'}.review-part[open]>summary{background:#d9edd9;border-bottom:1px solid #b4cbb4}.review-part-status{font-size:14px;margin-left:auto;white-space:nowrap}.review-part-body{min-width:0}.review-part-body>.sheet-scroll{max-height:70vh}.review-sections+.team-review-panel{padding:10px 13px}.team-review-panel>.team-return{border:0;margin:0;padding:0}.team-list .team-row-actions{flex-wrap:wrap}.team-list td:last-child{min-width:210px}.review-part-body .section-approve{padding:12px}.review-sections .section-approved{border-radius:5px;margin:0}
 @media(max-width:700px){.review-part>summary{font-size:16px;padding:10px}.review-part-status{font-size:12px}.review-identity strong{font-size:16px}}
+
+/* V2.15: keep axis scores and saved work visible */
+.axis-workspace .axis-tab-score{display:block;font-weight:700;font-size:15px;color:#005b00;border-top:1px solid #bdd8bd;padding-top:5px;margin-top:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.axis-workspace .axis-tab.active .axis-tab-score{color:#005000}
+.axis-workspace .axis-score-note{font-size:13px;color:#526752;line-height:1.4;margin:8px 0 10px}
+#axis-workspace{scroll-margin-top:12px}
+.axis-content .saved-work-heading{font-size:15px;color:#005b00;margin:12px 0 8px}
+.axis-summary-tasks{margin:0;padding-left:19px}.axis-summary-tasks li{margin:2px 0}
+@media(max-width:700px){.axis-workspace .axis-tab-score{font-size:12px}.axis-workspace .axis-score-note{font-size:12px}}
