@@ -415,7 +415,9 @@ class DemoTest(unittest.TestCase):
   self.post(c,'/action/task/'+tid,dict(base,outstanding_evidence='Báo cáo kết quả vượt mức'),'/eval/1')
   page=c.get('/eval/1?axis=1').text
   self.assertIn('name="outstanding" value="1" checked',page)
-  self.assertIn('Báo cáo kết quả vượt mức',page)
+  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
+  w=load_workbook(io.BytesIO(r.content),data_only=True)
+  self.assertTrue(any('Báo cáo kết quả vượt mức' in str(cell.value) for row in w.active.iter_rows() for cell in row))
   token=self.csrf(c,'/eval/1?axis=1')
   r=c.post('/action/task/'+tid,data={'csrf':token,**base,'outstanding_evidence':''},files={'outstanding_file':('ket-qua.pdf',b'%PDF demo','application/pdf')},follow_redirects=False)
   self.assertEqual(r.status_code,303,r.text)
