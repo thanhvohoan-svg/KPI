@@ -72,7 +72,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=219"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.19</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=220"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.20</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -234,7 +234,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
  body='<section class="panel axis-workspace" id="axis-workspace"><div class="axis-nav">'
  for i in range(1,7):
   n,total=counts(i);earned,maximum=axis_points(i)
-  status=f'{len(grouped[i])} công việc đã lưu' if grouped[i] else 'Chưa nhập công việc'
+  status=f'{len(grouped[i])} công việc' if grouped[i] else 'Chưa nhập công việc'
   body+=f'<a class="axis-tab{" active" if step==i else ""}" href="{url(i)}"'+(' aria-current="step"' if step==i else '')+f'><b>TRỤC {i}</b><small>{status}</small><span class="axis-tab-score">KPI: {earned:.2f}/{maximum:.2f}</span></a>'
  body+=f'<a class="axis-tab{" active" if step==7 else ""}" href="{url(7)}"'+(' aria-current="step"' if step==7 else '')+f'><b>TỔNG HỢP</b><span class="axis-tab-score">KPI: {calc["kpi"]:.2f}/70</span></a></div>'
  if step==7:
@@ -246,7 +246,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
    rows.append([f'<a href="{url(i)}">Trục {i} · {h(axis_self.AXES[i][0])}</a>',titles,f'{n}/{total}' if total else 'Không có nhiệm vụ',f'{earned:.2f}',f'{maximum:.2f}'])
   common=e['common'] if cc.read(c,e) else None
   body+='<div class="stats summary-scores">'+stat('Tiêu chí chung /30',common if common is not None else '—')+stat('KPI /70',f'{calc["kpi"]:.2f}')+stat('Tổng /100',f'{common+calc["kpi"]:.2f}' if common is not None else '—')+'</div>'
-  body+='<section class="panel"><h2>Tổng hợp và gửi duyệt</h2>'+table(['Trục','Công việc đã lưu','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
+  body+='<section class="panel"><h2>Tổng hợp và gửi duyệt</h2>'+table(['Trục','Công việc','Đủ dữ liệu','KPI đạt','KPI tối đa'],rows)+'</section>'
   body+='<section class="panel"><h2>Tiêu chí chung (30 điểm)</h2><p>Điểm đã lưu: '+h(e['common'] if cc.read(c,e) else 'Chưa chấm chi tiết')+'</p><a class="btn secondary" href="/eval/'+str(eid)+'?part=common">Mở phiếu tiêu chí chung</a></section>'
   ready=calc['ready'] and cc.read(c,e) is not None and e['common'] is not None and e['department'] is not None and all(counts(i)[0]==counts(i)[1] for i in range(1,7))
   body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'</p>'
@@ -255,11 +255,10 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
   return body+f'<a class="btn secondary" href="{url(6)}">← Trục trước</a></section><section class="panel"><h2>XUẤT EXCEL HỒ SƠ ĐÁNH GIÁ</h2>'+pe.export_buttons(eid)+'</section>'
  n,total=counts(step);body+=f'<div class="axis-content" data-axis="{step}">'+axis_self.intro(step)
  body+=quick.picker(c,e,csrf,step,grouped[step])
- body+=f'<div class="axis-progress"><span><b>{n}/{total}</b> công việc đủ dữ liệu</span></div><div class="axis-task-list">'
- if grouped[step]:body+='<h3 class="saved-work-heading">CÔNG VIỆC ĐÃ LƯU ('+str(len(grouped[step]))+')</h3>'
+ body+='<div class="axis-task-list">'
  for i,(t,z) in enumerate(grouped[step],1):
   tid=t['id'];ready=bool(z['ready'] and t['source'] and t['product'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note']))
-  status='Đã dừng' if t['cancelled'] else 'Đã lưu đủ dữ liệu' if ready else 'Cần bổ sung'
+  status='Đã dừng' if t['cancelled'] else 'Đủ dữ liệu' if ready else 'Cần bổ sung'
   opened=' open' if not add_next and str(tid)==focus else ''
   body+=f'<details class="task work-card" name="axis-work"{opened}><summary><span class="work-name"><b>Công việc {i}: {h(t["title"])}</b><small>{status} · {h(t["done"] if t["done"] is not None else "—")}/{t["qty"]} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</small></span><span class="work-open" aria-hidden="true"></span></summary>'
   if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
@@ -268,7 +267,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
    if meta:
     data=dict(t)
     if not t['source'] or not t['product']:data['grp']=''
-    fields='<input type="hidden" name="edit_meta" value="1"><details class="work-metadata"'+(' open' if not t['source'] or not t['product'] else '')+'><summary>Thông tin nhiệm vụ · Nhóm '+h(data['grp'] or 'chưa chọn')+' · SL '+str(t['qty'])+' · Hạn: '+h(axis_self.date_label(e,t['due']))+'</summary>'+axis_self.metadata(c,e,step,data)+'</details>'
+    fields='<input type="hidden" name="edit_meta" value="1"><details class="work-metadata"'+(' open' if opened or not t['source'] or not t['product'] else '')+'><summary>Thông tin nhiệm vụ · Nhóm '+h(data['grp'] or 'chưa chọn')+' · SL '+str(t['qty'])+' · Hạn: '+h(axis_self.date_label(e,t['due']))+'</summary>'+axis_self.metadata(c,e,step,data)+'</details>'
    else:
     fields=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))} · Nhóm {t["grp"]}</p>'
    fields+='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'] if t['corrections'] is not None else 0,'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=None if meta else t['effective_due'] or t['due'])+'</div>'+quick.inline_evidence(c,e,t)+textarea('Minh chứng bổ sung (nếu có)','evidence',t.get('manual_evidence',t['evidence']))+'<details class="work-exception"><summary>Đề xuất vượt yêu cầu (nếu có)</summary>'+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])+'</details><input type="hidden" name="next_after" value="1">'
