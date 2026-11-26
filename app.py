@@ -70,7 +70,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=213"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.13</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=214"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.14</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -291,11 +291,8 @@ def eval_get(eid:int,r:Request):
    if not editable:body+='<section class="panel">'+pe.export_buttons(eid)+'</section>'
   elif member_view:
    body=leader_ui.member_header(u,e,calc,common)
-   if leader_active:body+='<div class="personal-flow-frame team-flow-frame">'+workflow_panel(c,e,True)+'<div class="personal-flow-content" aria-label="Tổ trưởng đánh giá hồ sơ">'
-   else:body+=workflow_panel(c,e)
-   body+=leader_ui.score_panel(c,e,calc)
+
   else:body+=workflow_panel(c,e)
-  if member_view:body=leader_ui.personal_process(c,u,e['period'])+leader_ui.tabs_for_eval(c,u,e,'team')+body
   if e['note']:body+='<p class="alert">Nhận xét: '+h(e['note'])+'</p>'
   if can_manage(u):body+=cc.assignment_panel(c,e,csrf)
   if editable:
@@ -306,10 +303,10 @@ def eval_get(eid:int,r:Request):
    if part=='common':body+=cc.edit_panel(c,e,csrf,True)+f'<a class="btn" href="/eval/{eid}?axis=1">Chuyển sang phần KPI →</a>'
    else:body+=axis_editor(c,e,calc,csrf,step,r.query_params.get('add')=='1')
   elif member_view and not (review and e['status'] in ('draft','returned')):
-   body+=excel_preview.preview(c,e,calc,csrf,leader_active)
+   body+=excel_preview.preview(c,e,calc,csrf,leader_active,r.query_params.get('section'))
   else:
    if member_view:
-    body+=excel_preview.preview(c,e,calc,csrf,leader_active)
+    body+=excel_preview.preview(c,e,calc,csrf,leader_active,r.query_params.get('section'))
     body+='<details class="panel team-detail-tools"><summary>Điều chỉnh nhiệm vụ (nếu cần)</summary>'
    else:body+=cc.edit_panel(c,e,csrf,False)
    if editable:body+='<section class="panel"><h2>Điểm tiêu chí chung</h2>'+form(f'/action/common/{eid}',csrf,field('Điểm tự chấm theo biểu mẫu có thẩm quyền','common',e['common'],'number','min="0" max="30" step="0.01" required'),'Lưu điểm')+'</section>'
@@ -336,15 +333,16 @@ def eval_get(eid:int,r:Request):
    if member_view:body+='</details>'
    if editable:body+='<section class="panel"><h2>Gửi hồ sơ đánh giá</h2><p>Đề xuất sơ bộ: '+h(suggestion(calc,e['common']))+'. Phải có căn cứ giao nhiệm vụ, minh chứng và điểm tiêu chí chung.</p>'+form(f'/action/submit/{eid}',csrf,check('Xác nhận thông tin và minh chứng đúng thực tế','confirmed'),'Gửi duyệt')+'</section>'
   if review and e['status'] in ('submitted','team'):
-   body+='<section class="panel'+(' team-review-panel' if member_view else '')+'"><h2>'+('NHẬN XÉT VÀ ĐÁNH GIÁ CỦA TỔ TRƯỞNG' if member_view else 'Rà soát hồ sơ')+'</h2><p>Điểm tự chấm tiêu chí chung: '+h(e['common'])+' /30 · Đề xuất: '+h(e['self_level'])+'</p>'
+   if member_view:body+='<section class="panel team-review-panel"><details id="team-return" class="team-return team-action-target"'+(' open' if r.query_params.get('review')=='return' else '')+'><summary>Trả lại hồ sơ để bổ sung</summary>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại hồ sơ')+'</details></section>'
+   else:body+='<section class="panel'+(' team-review-panel' if member_view else '')+'"><h2>'+('NHẬN XÉT VÀ ĐÁNH GIÁ CỦA TỔ TRƯỞNG' if member_view else 'Rà soát hồ sơ')+'</h2><p>Điểm tự chấm tiêu chí chung: '+h(e['common'])+' /30 · Đề xuất: '+h(e['self_level'])+'</p>'
    if not member_view:body+=form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')
-   if member_view:body+='<details id="team-return" class="team-return team-action-target"'+(' open' if r.query_params.get('review')=='return' else '')+'><summary>Trả lại hồ sơ để bổ sung</summary>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại hồ sơ')+'</details>'
    if can_manage(u):
     good,xs=group_quota(c,e);body+=f'<p>Nhóm tương đồng: HTT đã duyệt {good} · HTXS đã duyệt {xs} · tối đa {quota(good)}.</p>'+form(f'/action/approve/{eid}',csrf,field('Điểm tiêu chí chung xác nhận','common',common,'number','min="0" max="30" step="0.01" required')+select('Xếp loại chính thức','level',[(x,x) for x in LEVELS],suggestion(calc,common))+textarea('Nhận xét / căn cứ lựa chọn','note',attrs='required')+check('Đã kiểm tra điều kiện, minh chứng, thẩm quyền và tỷ lệ','confirmed'),'BGH duyệt')
-   body+='</section>'
+   if not member_view:body+='</section>'
   if can_manage(u) and u['id']!=e['user'] and not e['locked'] and e['status']=='approved':body+='<section class="panel">'+form(f'/action/reopen/{eid}',csrf,textarea('Lý do mở lại hồ sơ','note',attrs='required'),'Mở lại hồ sơ')+'</section>'
-  if e['self_snapshot']:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
-  if editable or leader_active:body+='</div></div>'
+  if e['self_snapshot'] and not member_view:body+='<section class="panel"><h2>Lịch sử tự chấm</h2><p>Điểm tự chấm lần nộp gần nhất: '+h(e['common'])+' /30 · '+h(e['self_level'])+'</p></section>'
+  if editable:body+='</div></div>'
+  if member_view:return layout('Xem và duyệt hồ sơ',body,u,csrf,compact=True)
   hist=allrows(c,'SELECT a.*,u.name FROM audit a LEFT JOIN users u ON u.id=a.actor WHERE evaluation=? ORDER BY a.id DESC LIMIT 30',(eid,));body+=('<details class="panel personal-history"><summary>Nhật ký hồ sơ</summary>' if personal or member_view else '<section class="panel"><h2>Nhật ký hồ sơ</h2>')+table(['Thời gian (UTC)','Người thực hiện','Thao tác','Chi tiết'],[[h(x['at']),h(x['name']),h(x['action']),h(x['detail'])] for x in hist])+('</details>' if personal or member_view else '</section>')
   return layout('Phiếu KPI cá nhân',body,u,csrf,compact=personal or leader_view)
 @app.post('/password')
