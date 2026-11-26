@@ -419,6 +419,9 @@ class DemoTest(unittest.TestCase):
   self.assertEqual(r.status_code,303,r.text)
   page=c.get('/eval/1?axis=1').text
   self.assertIn('ket-qua.pdf',page)
+  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
+  w=load_workbook(io.BytesIO(r.content),data_only=True)
+  self.assertTrue(any('Minh chứng vượt yêu cầu:' in str(cell.value) and 'ket-qua.pdf' in str(cell.value) for row in w.active.iter_rows() for cell in row))
   self.post(c,'/action/task/'+tid,dict(base,outstanding='0'),'/eval/1')
   page=c.get('/eval/1?axis=1').text
   self.assertNotIn('name="outstanding" value="1" checked',page)
