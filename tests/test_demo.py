@@ -358,6 +358,7 @@ class DemoTest(unittest.TestCase):
   self.assertGreaterEqual(page.count('value="quarter" selected>Quý III/2026'),2)
   self.assertIn('class="evidence-entry"',page)
   self.assertNotIn('Điểm đã lưu: A',page)
+  self.assertNotIn('Nhật ký hồ sơ',page)
   self.assertNotIn('Tệp TXT mẫu',page)
   ids=re.findall(r'name="tpl_(\d+)"',page)
   self.assertTrue(ids)
