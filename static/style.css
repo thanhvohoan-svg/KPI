@@ -114,3 +114,6 @@ header .header-account{display:flex;flex-direction:column;align-items:flex-end;g
 .axis-content .saved-work-heading{font-size:15px;color:#005b00;margin:12px 0 8px}
 .axis-summary-tasks{margin:0;padding-left:19px}.axis-summary-tasks li{margin:2px 0}
 @media(max-width:700px){.axis-workspace .axis-tab-score{font-size:12px}.axis-workspace .axis-score-note{font-size:12px}}
+
+/* V2.17: quick declaration, evidence reuse */
+.quick-panel{border:1px solid #a4c9a4;background:#f7fbf7;border-radius:7px;margin:12px 0;overflow:hidden}.quick-panel>summary{padding:12px;color:#005b00;background:#d9edd9;cursor:pointer;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.quick-panel>summary span{font-size:13px}.quick-body{padding:12px}.quick-body h3{color:#005b00;font-size:17px;margin:10px 0}.quick-body form{margin-bottom:12px}.quick-body .check,.quick-evidence .check{align-items:flex-start;margin:6px 0}.quick-suggestions{margin:0 0 10px 22px;padding:6px 10px;border-left:2px solid #a4c9a4;background:#e6f3e6}.quick-evidence{border:1px solid #b4cbb4;background:#f7fbf7;padding:8px;border-radius:6px}.quick-evidence summary{font-weight:bold;color:#005b00}.quick-evidence h4{margin:8px 0;color:#005b00}.linked-evidence{font-size:14px;overflow-wrap:anywhere;margin:5px 0}.linked-evidence a{color:#005b00;text-decoration:underline}

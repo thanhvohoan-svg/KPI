@@ -38,6 +38,10 @@ def seed():
                 done=qty if e['user']!=2 or axis!=2 else 1
                 finish=due if done==qty else None
                 c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,'KH DEMO 01 (giả lập)',axis,grp,product,qty,due,done,0,finish,'Minh chứng mẫu, không phải hồ sơ thật'))
+        from quick import setup
+        setup(c)
+        for title,grp,axis,product,qty,due in tasks:
+            c.execute('INSERT INTO quick_templates(period,department,title,axis,grp,product,source,qty,due,actor) VALUES(1,1,?,?,?,?,?,?,?,1)',(title,axis,grp,product,'KH DEMO 01 (giả lập)',qty,due))
         c.execute('UPDATE evaluations SET status="approved",team_common=28,final_common=28,final_level=?,self_level=?,note="Dữ liệu mẫu đã duyệt" WHERE user IN (5,6)',(LEVELS[1],LEVELS[1]))
         # A fully scored fictitious teacher is waiting for the leader in a new demo.
         from common_criteria import DEFAULT,leaves,pack,setup

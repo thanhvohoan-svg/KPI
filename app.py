@@ -10,6 +10,7 @@ import personal_exports as pe
 import leader_ui
 import excel_preview
 import team_review_parts as tr
+import quick
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -67,10 +68,11 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links=('' if u['role']=='teacher' else '<a href="/">Quản lý tổ</a>' if u['role'] in ('leader','deputy') else '<a href="/">Tổng quan</a>')+('' if DEMO else '<a href="/password">Đổi mật khẩu</a>')
   if u['role'] in ('admin','manager'): links+='<a href="/manage">Quản trị</a><a href="/audit">Nhật ký</a>'
   if can_manage(u) or u['role']=='leader': links+='<a href="/assign">Giao nhiệm vụ</a>'
+  links+='<a href="/quick">Kho minh chứng</a>'
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=216"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.16</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=217"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.17</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -97,7 +99,7 @@ def own_edit(u,e):
  unlocked(e)
  if u['id']!=e['user'] or e['status'] not in ('draft','returned'):fail('Hồ sơ không thể chỉnh sửa.',403)
 def result(c,e):
- t=allrows(c,'SELECT * FROM tasks WHERE evaluation=? ORDER BY axis,id',(e['id'],)); hol=[r['day'] for r in allrows(c,'SELECT day FROM holidays WHERE period=?',(e['period'],))]; return calculate(t,e['mode'],hol,end_of_quarter(e['year'],e['quarter']).isoformat())
+ t=allrows(c,'SELECT * FROM tasks WHERE evaluation=? ORDER BY axis,id',(e['id'],)); hol=[r['day'] for r in allrows(c,'SELECT day FROM holidays WHERE period=?',(e['period'],))]; return calculate(quick.enrich(c,t),e['mode'],hol,end_of_quarter(e['year'],e['quarter']).isoformat())
 def workflow_panel(c,e,connected=False,heading='QUY TRÌNH LUÂN CHUYỂN HỒ SƠ'):
  owner=one(c,'SELECT role FROM users WHERE id=?',(e['user'],))
  omit_team=owner is not None and owner['role']=='leader'
@@ -261,20 +263,21 @@ def axis_editor(c,e,calc,csrf,step,add_next=False):
   if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
   else:
    body+=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))} · Nhóm {t["grp"]}</p>'
-   fields='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=t['effective_due'] or t['due'])+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])
+   fields='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=t['effective_due'] or t['due'])+'</div>'+textarea('Minh chứng bổ sung (nếu có)','evidence',t.get('manual_evidence',t['evidence']))+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])
    body+=form(f'/action/task/{tid}',csrf,fields,'Lưu và thu gọn công việc',extra='data-work-form')
    body+=f'<p class="scoreline">Điểm đã lưu: A {z["a"]:.2f} · B {z["b"]:.2f} · C {z["c"]:.2f} · KPI {z["kpi"]:.2f}/{z["max"]:.2f}</p>'
    attachments=allrows(c,'SELECT id,filename FROM attachments WHERE task=?',(tid,))
    body+='<details><summary>Đính kèm minh chứng</summary>'+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data" data-work-form')
    if attachments:body+='<p>Tệp: '+' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
-   body+='</details>'+axis_self.manage_panel(c,e,t,csrf)
+   body+='</details>'+quick.evidence_form(c,e,t,csrf)+axis_self.manage_panel(c,e,t,csrf)
   body+='</details>'
  body+='</div>'
+ body+=quick.panel(c,e,csrf,step,grouped[step])
  body+=axis_self.add_panel(c,e,csrf,step,len(grouped[step]),add_next)
  body+='<div class="axis-finish"><p class="muted">Đã nhập hết công việc của trục? Chọn hoàn thành để chuyển tiếp.</p><div class="axis-actions">'
  if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
  body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></div></section>'
- body+='<script src="/static/axis.js?v=216" defer></script>'
+ body+='<script src="/static/axis.js?v=217" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
@@ -415,6 +418,7 @@ async def actions(r:Request,action:str='',obj:int=0):
    if action in ('common_template','common_copy','common_assign'):return cc.admin_action(c,u,f,action,obj)
    if action=='common_detail':
     e=get_eval(c,u,obj);cc.save(c,u,e,f);return redirect(f'/eval/{obj}?part=common')
+   if action in ('quick_template','quick_evidence','quick_add','quick_copy','quick_done','quick_link'):return await quick.action(c,u,f,action,obj)
    if action in ('self_add','self_edit','self_delete'):return axis_self.action(c,u,f,action,obj)
    if action=='axis_next':
     e=get_eval(c,u,obj);own_edit(u,e);axis=integer(f,'axis',1,6);calc=result(c,e)
@@ -490,6 +494,35 @@ async def actions(r:Request,action:str='',obj:int=0):
     return redirect(f'/eval/{obj}?axis=7' if action=='common' and f.get('axis_summary') else f'/eval/{obj}')
   except sqlite3.IntegrityError:fail('Dữ liệu trùng hoặc không hợp lệ. Kiểm tra lại.')
   fail('Thao tác không tồn tại.',404)
+@app.get('/quick')
+def quick_get(r:Request):
+ with closing(connect()) as c:
+  u,s=auth(c,r)
+  if not u:return redirect('/login')
+  if u['must_change']:return redirect('/password')
+  quick.setup(c)
+  ps=allrows(c,'SELECT * FROM periods ORDER BY locked,year DESC,quarter DESC')
+  if not ps:return layout('Kho minh chứng','<p>Chưa có kỳ đánh giá.</p>',u,s['csrf'])
+  raw=r.query_params.get('period',str(ps[0]['id']))
+  if not raw.isdigit():fail('Kỳ không hợp lệ.')
+  p=period(c,int(raw))
+  body='<section class="panel"><form method="get" action="/quick">'+select('Kỳ đánh giá','period',[(x['id'],axis_self.quarter_label(x)) for x in ps],p['id'])+'<button>Chọn</button></form></section>'
+  return layout('Kho minh chứng và nhiệm vụ chuẩn',body+quick.admin_panel(c,u,p,s['csrf']),u,s['csrf'],compact=True)
+@app.get('/quick/file/{rid}')
+def quick_file(rid:int,r:Request,task:int=0):
+ with closing(connect()) as c:
+  u,s=auth(c,r)
+  if not u or u['must_change']:fail('Cần đăng nhập.',401)
+  quick.setup(c)
+  x=one(c,'SELECT * FROM evidence_store WHERE id=?',(rid,))
+  if not x or not x['body']:fail('Không tìm thấy tệp.',404)
+  allowed=x['scope']=='school' or (x['scope']=='team' and u['department'] is not None and u['department']==x['department']) or (x['scope']=='personal' and x['owner']==u['id'])
+  if task:
+   t=one(c,'SELECT evaluation FROM tasks WHERE id=?',(task,))
+   if not t or not one(c,'SELECT 1 FROM evidence_links WHERE task=? AND evidence=?',(task,rid)):fail('Không có liên kết minh chứng.',403)
+   get_eval(c,u,t['evaluation']);allowed=True
+  if not allowed:fail('Không có quyền xem minh chứng.',403)
+  return Response(x['body'],media_type='application/octet-stream',headers={'Content-Disposition':"attachment; filename*=UTF-8''"+urllib.parse.quote(x['filename'])})
 @app.get('/attachment/{aid}')
 def attachment(aid:int,r:Request):
  with closing(connect()) as c:

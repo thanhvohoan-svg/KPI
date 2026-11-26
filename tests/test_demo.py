@@ -263,4 +263,53 @@ class DemoTest(unittest.TestCase):
   self.assertEqual(rows['Sinh hoạt chuyên môn'][6].value.strftime('%Y-%m-%d'),'2026-09-25')
   self.assertEqual(rows['Sinh hoạt chuyên môn'][12].value.strftime('%Y-%m-%d'),'2026-09-30')
   self.assertLess(rows['Sinh hoạt chuyên môn'][13].value,100)
+ def test_quick_entry_and_evidence(self):
+  c=self.client();self.login(c,'totruong')
+  self.assertIn('Danh mục nhiệm vụ chuẩn',c.get('/quick?period=1').text)
+  template={'department':'1','title':'Nhiệm vụ chuẩn thử','axis':'1','grp':'2','product':'Sản phẩm thử','source':'KH giả lập 02','qty':'3','due':'quarter'}
+  self.post(c,'/action/quick_template/1',dict(template,department='2'),'/quick',403)
+  self.post(c,'/action/quick_template/1',template,'/quick')
+  self.post(c,'/action/quick_evidence/1',{'scope':'team','title':'Biên bản thử của tổ','reference':'BB 02 giả lập','task_title':template['title']},'/quick')
+  self.logout(c);self.login(c,'giaovientoan')
+  self.assertNotIn('Biên bản thử của tổ',c.get('/quick?period=1').text)
+  self.assertNotIn('Nhiệm vụ chuẩn thử',c.get('/eval/5?axis=1').text)
+  self.logout(c);self.login(c,'giaovien')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('Nhập nhanh công việc',page)
+  self.assertIn(template['title'],page)
+  self.post(c,'/action/quick_template/1',template,'/quick',403)
+  self.post(c,'/action/quick_evidence/1',{'scope':'school','title':'Không hợp lệ','reference':'Mẫu'},'/quick',403)
+  ids=re.findall(r'name="tpl_(\d+)"',page)
+  self.assertGreaterEqual(len(ids),2)
+  self.post(c,'/action/quick_add/1',{'axis':'1',**{'tpl_'+i:'1' for i in ids}},'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('CÔNG VIỆC ĐÃ LƯU',page)
+  doneids=re.findall(r'name="done_(\d+)"',page)
+  self.assertTrue(doneids)
+  links=re.findall(r'name="(link_\d+_\d+)"',page)
+  self.assertTrue(links)
+  self.post(c,'/action/quick_done/1',{'axis':'1',**{'done_'+i:'1' for i in doneids}},'/eval/1',400)
+  self.post(c,'/action/quick_done/1',{'axis':'1','confirmed':'1',**{'done_'+i:'1' for i in doneids},**{k:'1' for k in links}},'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('Biên bản thử của tổ',page)
+  self.assertIn('Đã lưu đủ dữ liệu',page)
+  tid,ev=links[0].split('_')[1:]
+  self.post(c,'/action/quick_link/'+tid,{'ev_999999':'1','confirmed':'1'},'/eval/1',403)
+  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
+  w=load_workbook(io.BytesIO(r.content),data_only=True)
+  row=next(row for row in w.active.iter_rows() if row[1].value==template['title'])
+  self.assertIn('Biên bản thử của tổ',row[18].value)
+  self.logout(c);self.login(c,'bangiamhieu')
+  self.post(c,'/action/period',{'year':'2026','quarter':'4','mode':'task','confirmed':'1'},'/manage')
+  self.logout(c);self.login(c,'giaovien')
+  landing=c.get('/',follow_redirects=False);path=landing.headers['location']
+  page=c.get(path+'?axis=1').text
+  oldids=re.findall(r'name="old_(\d+)"',page)
+  self.assertTrue(oldids)
+  eid=path.rsplit('/',1)[1]
+  self.post(c,'/action/quick_copy/'+eid,{'axis':'1','confirmed':'1',**{'old_'+i:'1' for i in oldids}},path)
+  page=c.get(path+'?axis=1').text
+  self.assertIn(template['title'],page)
+  self.assertIn('Cần bổ sung',page)
+  self.assertNotIn('Biên bản thử của tổ',page)
 if __name__=='__main__':unittest.main(verbosity=2)
