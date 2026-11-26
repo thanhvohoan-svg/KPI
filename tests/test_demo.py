@@ -365,7 +365,7 @@ class DemoTest(unittest.TestCase):
   page=c.get(r.headers['location']).text
   tid=re.search(r'/action/task/(\d+)',page).group(1)
   self.assertGreaterEqual(page.count('value="quarter" selected>Quý III/2026'),4)
-  token=self.token(c,'/eval/1?axis=1')
+  token=self.csrf(c,'/eval/1?axis=1')
   data={'csrf':token,'done':'1','corrections':'0','finish':'quarter','evidence':''}
   r=c.post('/action/task/'+tid,data=data,files=[('file',('bao-cao.pdf',b'%PDF-1.4 demo','application/pdf')),('file',('minh-chung.zip',b'PK demo','application/zip'))],follow_redirects=False)
   self.assertEqual(r.status_code,303,r.text)
