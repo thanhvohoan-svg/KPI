@@ -47,14 +47,37 @@ def title_fields(c,axis,t):
  options=[('','-- Chọn nội dung công việc --')]+[(name,name) for name in choices(c,axis,current)]+[('__other__','Công việc khác (tự nhập)')]
  return '<div class="work-choice">'+select('Nội dung công việc', 'choice',options,current,attrs='required data-work-choice')+'<div data-work-custom>'+field('Tên công việc khác (chỉ nhập nếu chọn Công việc khác)','title',attrs='maxlength="500" placeholder="Nhập tên công việc chưa có trong danh mục"')+'</div></div>'
 
-def metadata(c,axis,t=None):
+def quarter_label(e):
+ return 'Quý '+('I','II','III','IV')[e['quarter']-1]+'/'+str(e['year'])
+
+def date_label(e,value):
+ if not value:return 'Chưa hoàn thành'
+ return quarter_label(e) if value==end_of_quarter(e['year'],e['quarter']).isoformat() else str(value)
+
+def quarter_field(e,label,name,value=None,optional=False):
+ from app import field,select
+ cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
+ mode='quarter' if value==cutoff or (not value and not optional) else 'exact' if value else ''
+ options=([('','Chưa hoàn thành')] if optional else [])+[('quarter',quarter_label(e)),('exact','Ngày cụ thể')]
+ return '<div class="quarter-field" data-quarter-field>'+select(label,name,options,mode,attrs='data-quarter-choice')+'<div data-quarter-date>'+field('Ngày cụ thể',name+'_exact',value if mode=='exact' else '',kind='date',attrs='data-quarter-exact')+'</div></div>'
+
+def read_quarter(f,key,e,empty=False,due=None):
+ from app import datefield,fail
+ value=str(f.get(key,'')).strip()
+ cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
+ if value=='quarter':
+  if due is not None and due<cutoff:fail('Công việc có hạn riêng: hãy chọn ngày hoàn thành cụ thể để tính đúng tiến độ.')
+  return cutoff
+ return datefield(f,key+'_exact' if value=='exact' else key,empty and value!='exact')
+
+def metadata(c,e,axis,t=None):
  from app import field,textarea,select
  t=t or {}
- return title_fields(c,axis,t)+'<div class="twocol work-meta">'+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+field('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500" placeholder="Tên sản phẩm hoặc kết quả dự kiến"')+'</div>'+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+field('Thời hạn hoàn thành','due',t.get('due',''),'date','required')+'</div>'
+ return title_fields(c,axis,t)+'<div class="twocol work-meta">'+field('Căn cứ giao nhiệm vụ','source',t.get('source',''),attrs='required maxlength="500" placeholder="Số kế hoạch, quyết định, văn bản phân công..."')+field('Sản phẩm cụ thể','product',t.get('product',''),attrs='required maxlength="500" placeholder="Tên sản phẩm hoặc kết quả dự kiến"')+'</div>'+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+quarter_field(e,'Thời hạn hoàn thành','due',t.get('due'))+'</div>'
 
 def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
- fields=metadata(c,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+field('Ngày hoàn thành thực tế','finish','','date')+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
+ fields=metadata(c,e,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+quarter_field(e,'Thời gian hoàn thành thực tế','finish',optional=True)+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
  opened=' open' if not count or add_next else ''
  return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b class="new-work-title"><svg class="new-work-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nhập công việc {count+1}</b><span class="new-work-hint">Chọn để mở / thu gọn</span></summary><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
 
@@ -62,7 +85,7 @@ def manage_panel(c,e,t,csrf):
  from app import form,check
  if not manageable(c,e,t):return ''
  tid=t['id']
- return '<details><summary>Sửa tên, phân nhóm, sản phẩm hoặc hạn công việc tự khai</summary>'+form(f'/action/self_edit/{tid}',csrf,metadata(c,t['axis'],dict(t)),'Lưu nội dung công việc',extra='data-work-form')+'</details><details><summary>Xóa công việc tự khai / mẫu</summary>'+form(f'/action/self_delete/{tid}',csrf,check('Xác nhận xóa công việc này và minh chứng đi kèm','confirmed'),'Xóa công việc')+'</details>'
+ return '<details><summary>Sửa tên, phân nhóm, sản phẩm hoặc hạn công việc tự khai</summary>'+form(f'/action/self_edit/{tid}',csrf,metadata(c,e,t['axis'],dict(t)),'Lưu nội dung công việc',extra='data-work-form')+'</details><details><summary>Xóa công việc tự khai / mẫu</summary>'+form(f'/action/self_delete/{tid}',csrf,check('Xác nhận xóa công việc này và minh chứng đi kèm','confirmed'),'Xóa công việc')+'</details>'
 
 def action(c,u,f,action,obj):
  from app import get_eval,own_edit,integer,datefield,required,optional,one,fail,redirect,DEMO
@@ -86,14 +109,14 @@ def action(c,u,f,action,obj):
   allowed=choices(c,axis,t['title'] if action=='self_edit' else '')
   if choice not in allowed:fail('Công việc không có trong danh mục của trục này.')
   title=choice
- source=required(f,'source');product=required(f,'product');grp=integer(f,'grp',1,4);qty=integer(f,'qty',1,1000000);due=datefield(f,'due');cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
+ source=required(f,'source');product=required(f,'product');grp=integer(f,'grp',1,4);qty=integer(f,'qty',1,1000000);due=read_quarter(f,'due',e);cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
  if due>cutoff:fail('Hạn phải trong hoặc trước ngày kết thúc quý.')
  for old in c.execute('SELECT id,title,source FROM tasks WHERE evaluation=?',(e['id'],)):
   if old['id']!=tid and normalize(old['title'])==normalize(title) and normalize(old['source'])==normalize(source):fail('Công việc đã có trong phiếu. Không kê trùng giữa các trục.')
  if action=='self_edit':
   c.execute('UPDATE tasks SET title=?,source=?,product=?,grp=?,qty=?,due=? WHERE id=?',(title,source,product,grp,qty,due,tid));audit(c,uid,'Sửa nội dung công việc tự khai',e['id'],title)
  else:
-  done=integer(f,'done',0,1000000,True);cor=integer(f,'corrections',0,1000000,True);finish=datefield(f,'finish',True);ev=optional(f,'evidence');out=int(bool(f.get('outstanding')));note=optional(f,'outstanding_note')
+  done=integer(f,'done',0,1000000,True);cor=integer(f,'corrections',0,1000000,True);finish=read_quarter(f,'finish',e,True,due);ev=optional(f,'evidence');out=int(bool(f.get('outstanding')));note=optional(f,'outstanding_note')
   if finish and finish>cutoff:fail('Ngày hoàn thành sau thời điểm chốt quý.')
   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence,outstanding,outstanding_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due,done,cor,finish,ev,out,note)).lastrowid
   audit(c,uid,'Tự khai nhiệm vụ',e['id'],str(tid));audit(c,uid,'Nội dung nhiệm vụ tự khai',e['id'],title)
