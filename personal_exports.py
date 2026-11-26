@@ -68,7 +68,7 @@ def common_sheet(w,c,e):
  r+=1;merge(sh,r,0,1,'CÁ NHÂN TỰ ĐÁNH GIÁ',f['sign']);merge(sh,r,2,4,'NGƯỜI ĐÁNH GIÁ',f['sign']);r+=1;merge(sh,r,0,1,'(Ký, ghi rõ họ tên)',f['signsub']);merge(sh,r,2,4,'(Ký, ghi rõ họ tên)',f['signsub']);sh.set_row(r+1,65)
  sh.freeze_panes(4,2);sh.repeat_rows(3);sh.print_area(0,0,r+1,4)
  return k
-def kpi_sheet(w,c,e,calc):
+def kpi_sheet(w,c,e,calc,hide_evidence=False):
  f=formats(w);sh=w.add_worksheet('CONG CHUC');page(sh)
  for j,width in enumerate([4,82,13.4,6.7,43,6,10.6,11,7.4,8.4,7.1,5.6,13.8,5.6,10,9,7,10.5,32]):sh.set_column(j,j,width)
  sh.set_column('T:T',4);sh.set_column('U:U',12,None,{'hidden':True})
@@ -95,7 +95,7 @@ def kpi_sheet(w,c,e,calc):
   sh.write_formula(ar,16,f'=IFERROR(H{ax}/$U$6*70,0)',f['axisnum'],weight)
   sh.write_formula(ar,17,f'=SUM(R{r+1}:R{r+len(items)})' if items else '=0',f['axisnum'],earned);put(sh,ar,18,'',f['axis'])
   for j,(t,z) in enumerate(items,1):
-   rr=r+1;note='Căn cứ: '+t['source']+'; Minh chứng: '+(t['evidence'] or '')+'; Chậm chủ quan: '+str(z['late'])+' ngày làm việc'
+   rr=r+1;note='Căn cứ: '+t['source']+('' if hide_evidence else '; Minh chứng: '+(t['evidence'] or ''))+'; Chậm chủ quan: '+str(z['late'])+' ngày làm việc'
    if t['outstanding_note']:note+='; '+t['outstanding_note']
    if t['cancelled']:note+='; Dừng: '+t['cancel_reason']
    vals=[j,t['title'],'Nhóm '+str(t['grp'])+' ('+str(50+t['grp']*50)+'đ)',50+t['grp']*50,t['product'],t['qty'],None,None,z['ratio'] if t['done'] is not None else None,None,t['corrections'],None,None,None,None,None,None,None,note]
