@@ -54,15 +54,49 @@ def render_sheet(sh,kind):
   out+='</tr>'
  return out+'</tbody></table></div>'
 
-def preview(c,e,calc):
+def compact_kpi(calc):
+ from app import h
+ from axis_self import AXES
+ def n(v):return f'{v:.2f}'
+ def val(v):return '—' if v is None else h(v)
+ out='<div class="tablewrap compact-kpi"><table><thead><tr><th>Nội dung công việc</th><th>Sản phẩm</th><th>Nhóm</th><th>Số lượng</th><th>Chất lượng</th><th>Tiến độ</th><th>KPI đạt / tối đa</th></tr></thead><tbody>'
+ for axis in range(1,7):
+  items=[(t,z) for t,z in calc['rows'] if t['axis']==axis]
+  if not items:continue
+  out+='<tr class="compact-kpi-axis"><td colspan="6">TRỤC '+str(axis)+' · '+h(AXES[axis][0])+'</td><td>'+n(sum(z['kpi'] for t,z in items))+' / '+n(sum(z['max'] for t,z in items))+'</td></tr>'
+  for t,z in items:
+   qty=val(t['done'])+'/'+str(t['qty'])+'<small>A: '+n(z['a'])+'</small>'
+   quality=val(t['corrections'])+' lần sửa<small>B: '+n(z['b'])+'</small>'
+   timing='Hạn: '+val(t['effective_due'] or t['due'])+'<small>Hoàn thành: '+val(t['finish'])+'</small><small>Chậm: '+str(z['late'])+' ngày · C: '+n(z['c'])+'</small>'
+   if t['cancelled']:qty=quality=timing='Dừng hợp lệ'
+   cells=[h(t['title']),h(t['product']),str(t['grp'])+'<small>Chuẩn: '+n(z['base'])+'</small>',qty,quality,timing,'<b>'+n(z['kpi'])+' / '+n(z['max'])+'</b>']
+   out+='<tr>'+''.join('<td>'+v+'</td>' for v in cells)+'</tr>'
+ if not calc['rows']:out+='<tr><td colspan="7">Chưa có công việc.</td></tr>'
+ out+='<tr class="compact-kpi-total"><td colspan="6">TỔNG ĐIỂM KPI</td><td>'+n(calc['kpi'])+' / 70</td></tr></tbody></table></div>'
+ return out
+
+def evidence_panel(c,calc):
+ from app import h
+ items=[]
+ for t,z in calc['rows']:
+  desc=(t['evidence'] or '').strip()
+  files=c.execute('SELECT id,filename FROM attachments WHERE task=? ORDER BY id',(t['id'],)).fetchall()
+  if not desc and not files:continue
+  body='<li><b>Trục '+str(t['axis'])+' · '+h(t['title'])+'</b>'
+  if desc:body+='<p class="evidence-text">'+h(desc)+'</p>'
+  if files:body+='<div class="evidence-files">'+''.join('<a class="btn small secondary" href="/attachment/'+str(f['id'])+'">'+h(f['filename'])+'</a>' for f in files)+'</div>'
+  items.append(body+'</li>')
+ if not items:return ''
+ return '<details class="declared-evidence"><summary>Hiện minh chứng ('+str(len(items))+' công việc)</summary><ol>'+''.join(items)+'</ol></details>'
+
+def preview(c,e,calc,csrf='',active=False):
  from app import workbook
- out='<section class="panel excel-preview"><h2>'+ 'XEM HỒ SƠ THEO MẪU EXCEL'+'</h2><p class="muted">Nội dung lấy từ hồ sơ đã lưu, cùng biểu mẫu và số liệu với file tải xuống. Cuộn ngang để xem đủ các cột KPI.</p>'
- for kind,title in [('common','PHỤ LỤC CHẤM TIÊU CHÍ CHUNG'),('kpi','BẢNG ĐÁNH GIÁ KPI – 19 CỘT')]:
-  b,w=workbook()
-  if kind=='common':pe.common_sheet(w,c,e)
-  else:pe.kpi_sheet(w,c,e,calc)
-  w.close();b.seek(0);book=load_workbook(b,data_only=True)
-  try:html=render_sheet(book.active,kind)
-  finally:book.close()
-  out+='<details class="excel-sheet" name="excel-preview-'+str(e['id'])+'"'+(' open' if kind=='common' else '')+'><summary><b>'+title+'</b><span>Mở / thu gọn</span></summary>'+html+'</details>'
+ import team_review_parts as tr
+ saved=tr.read(c,e)
+ b,w=workbook();pe.common_sheet(w,c,e);w.close();b.seek(0);book=load_workbook(b,data_only=True)
+ try:common=render_sheet(book.active,'common')
+ finally:book.close()
+ out='<section class="panel excel-preview"><h2>XEM HỒ SƠ ĐÁNH GIÁ</h2>'+tr.progress(e,saved)
+ out+='<section id="team-approve" class="review-part team-action-target"><h3>PHỤ LỤC CHẤM TIÊU CHÍ CHUNG</h3>'+common+tr.approval_form(e,'common',saved,csrf,active)+'</section>'
+ out+='<section id="team-kpi" class="review-part team-action-target"><h3>BẢNG ĐÁNH GIÁ KPI</h3>'+compact_kpi(calc)+evidence_panel(c,calc)+tr.approval_form(e,'kpi',saved,csrf,active)+'</section>'
  return out+'</section>'
