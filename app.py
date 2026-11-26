@@ -9,6 +9,7 @@ import common_criteria as cc
 import personal_exports as pe
 import leader_ui
 import excel_preview
+import team_review_parts as tr
 from school_logo import LOGO_URI
 import html, json, time, io, urllib.parse, xlsxwriter
 from contextlib import closing
@@ -69,7 +70,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=212"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.12</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=213"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.13</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -304,10 +305,12 @@ def eval_get(eid:int,r:Request):
    body+='<section class="panel role-cards evaluation-parts">'+workflow.dashboard_card(f'/eval/{eid}?part=common','PHẦN I. TIÊU CHÍ CHUNG','30 điểm','file',part=='common')+workflow.dashboard_card(f'/eval/{eid}?axis=1','PHẦN II. KPI','70 điểm · 6 trục','team',part=='kpi' and step!=7)+workflow.dashboard_card(f'/eval/{eid}?axis=7','TỔNG HỢP','100 điểm · Gửi hồ sơ','check',part=='kpi' and step==7)+'</section>'
    if part=='common':body+=cc.edit_panel(c,e,csrf,True)+f'<a class="btn" href="/eval/{eid}?axis=1">Chuyển sang phần KPI →</a>'
    else:body+=axis_editor(c,e,calc,csrf,step,r.query_params.get('add')=='1')
+  elif member_view and not (review and e['status'] in ('draft','returned')):
+   body+=excel_preview.preview(c,e,calc,csrf,leader_active)
   else:
    if member_view:
-    body+=excel_preview.preview(c,e,calc)
-    body+='<details class="panel team-detail-tools"><summary>Minh chứng đính kèm và chi tiết nhiệm vụ</summary>'
+    body+=excel_preview.preview(c,e,calc,csrf,leader_active)
+    body+='<details class="panel team-detail-tools"><summary>Điều chỉnh nhiệm vụ (nếu cần)</summary>'
    else:body+=cc.edit_panel(c,e,csrf,False)
    if editable:body+='<section class="panel"><h2>Điểm tiêu chí chung</h2>'+form(f'/action/common/{eid}',csrf,field('Điểm tự chấm theo biểu mẫu có thẩm quyền','common',e['common'],'number','min="0" max="30" step="0.01" required'),'Lưu điểm')+'</section>'
    body+='<section class="panel"><h2>'+('PHẦN II. KPI – 70 ĐIỂM' if member_view else 'Nhiệm vụ được giao')+'</h2><p class="muted">Điểm được tính theo quy tắc kỳ: '+h(e['mode'])+'. Nhiệm vụ chưa hoàn thành áp dụng giới hạn chất lượng/tiến độ thận trọng; xem hướng dẫn sử dụng.</p>'
@@ -322,9 +325,9 @@ def eval_get(eid:int,r:Request):
     if t['cancelled']:body+='<p class="alert">Dừng hợp lệ: '+h(t['cancel_reason'])+'</p>'
     else:
      if editable:body+=form(f'/action/task/{tid}',csrf,'<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'],'number','min="0" max="1000000" required')+field('Ngày hoàn thành thực tế','finish',t['finish'],'date')+'</div>'+textarea('Minh chứng (số văn bản, ngày, đường dẫn; nếu có tệp ghi mô tả)','evidence',t['evidence'])+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note']),'Lưu kết quả nhiệm vụ')+form(f'/action/upload/{tid}',csrf,field('Tệp TXT mẫu (tối đa 100 KB)' if DEMO else 'Tệp minh chứng (tối đa 5 MB)','file',kind='file',attrs='required accept=".txt"' if DEMO else 'required accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"'),'Đính kèm',extra='enctype="multipart/form-data"')
-     else:body+=f'<p>Hoàn thành: {h(t["done"])} / {t["qty"]} · Chỉnh sửa: {h(t["corrections"])} · Ngày hoàn thành: {h(t["finish"])} · Chậm: {z["late"]} ngày làm việc</p><p>Minh chứng: {h(t["evidence"])}</p><p>Vượt yêu cầu: {h(t["outstanding_note"])}</p>'
+     else:body+=f'<p>Hoàn thành: {h(t["done"])} / {t["qty"]} · Chỉnh sửa: {h(t["corrections"])} · Ngày hoàn thành: {h(t["finish"])} · Chậm: {z["late"]} ngày làm việc</p>'+('' if member_view else f'<p>Minh chứng: {h(t["evidence"])}</p><p>Vượt yêu cầu: {h(t["outstanding_note"])}</p>')
      body+=f'<p class="scoreline">A: {z["a"]:.2f} · B: {z["b"]:.2f} · C: {z["c"]:.2f} · KPI: {z["kpi"]:.2f}/ {z["max"]:.2f}</p>'
-    if attachments:body+='<p>Tệp: '+ ' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
+    if attachments and not member_view:body+='<p>Tệp: '+ ' · '.join(f'<a href="/attachment/{a["id"]}">{h(a["filename"])}</a>' for a in attachments)+'</p>'
     if review and e['status'] in ('draft','returned'):
      body+='<details><summary>Điều chỉnh hợp lệ (người quản lý)</summary>'+form(f'/action/adjust/{tid}',csrf,field('Hạn điều chỉnh (nếu có)','effective_due',t['effective_due'],'date')+field('Căn cứ điều chỉnh hạn','extension_reason',t['extension_reason'])+field('Số ngày chậm chủ quan được xác nhận (để trống: tự tính)','late_override',t['late_override'],'number','min="0" max="1000000"')+field('Căn cứ điều chỉnh ngày chậm','late_reason',t['late_reason'])+check('Dừng nhiệm vụ hợp lệ','cancelled',t['cancelled'])+field('Căn cứ dừng','cancel_reason',t['cancel_reason']),'Lưu điều chỉnh')+'</details>'
     body+='</details>'
@@ -335,7 +338,6 @@ def eval_get(eid:int,r:Request):
   if review and e['status'] in ('submitted','team'):
    body+='<section class="panel'+(' team-review-panel' if member_view else '')+'"><h2>'+('NHẬN XÉT VÀ ĐÁNH GIÁ CỦA TỔ TRƯỞNG' if member_view else 'Rà soát hồ sơ')+'</h2><p>Điểm tự chấm tiêu chí chung: '+h(e['common'])+' /30 · Đề xuất: '+h(e['self_level'])+'</p>'
    if not member_view:body+=form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại bổ sung')
-   if team_review(u,e) and e['status']=='submitted':body+='<div id="team-approve" class="team-action-target">'+form(f'/action/team/{eid}',csrf,field('Điểm tiêu chí chung sau rà soát (tối đa 30)','common',e['common'],'number','min="0" max="30" step="0.01" required')+textarea('Nhận xét của tổ trưởng','note',attrs='required'),'Duyệt hồ sơ – Xác nhận và chuyển BGH')+'</div>'
    if member_view:body+='<details id="team-return" class="team-return team-action-target"'+(' open' if r.query_params.get('review')=='return' else '')+'><summary>Trả lại hồ sơ để bổ sung</summary>'+form(f'/action/return/{eid}',csrf,textarea('Lý do trả lại','note',attrs='required'),'Trả lại hồ sơ')+'</details>'
    if can_manage(u):
     good,xs=group_quota(c,e);body+=f'<p>Nhóm tương đồng: HTT đã duyệt {good} · HTXS đã duyệt {xs} · tối đa {quota(good)}.</p>'+form(f'/action/approve/{eid}',csrf,field('Điểm tiêu chí chung xác nhận','common',common,'number','min="0" max="30" step="0.01" required')+select('Xếp loại chính thức','level',[(x,x) for x in LEVELS],suggestion(calc,common))+textarea('Nhận xét / căn cứ lựa chọn','note',attrs='required')+check('Đã kiểm tra điều kiện, minh chứng, thẩm quyền và tỷ lệ','confirmed'),'BGH duyệt')
@@ -461,18 +463,20 @@ async def actions(r:Request,action:str='',obj:int=0):
      if action=='common':fail('Hãy chấm từng tiêu chí trong Phần I.',400)
      else:
       if not f.get('confirmed') or not calc['ready'] or cc.read(c,e) is None or e['common'] is None or e['department'] is None or any(t['outstanding'] and not t['outstanding_note'] and not t['cancelled'] for t,z in calc['rows']):fail('Cần xác nhận, phân tổ, nhiệm vụ, kết quả, minh chứng và điểm chung đầy đủ.')
+      tr.clear(c,obj)
       snapshot=json.dumps({'common':e['common'],'calc':calc,'level':suggestion(calc,e['common'])},ensure_ascii=False);c.execute('UPDATE evaluations SET status="submitted",self_snapshot=?,self_level=?,team_common=NULL,final_common=NULL,final_level=NULL WHERE id=?',(snapshot,suggestion(calc,e['common']),obj));audit(c,uid,'Nộp hồ sơ',obj,snapshot)
     else:
      if uid==e['user'] or not (can_manage(u) or team_review(u,e)):fail('Không có quyền duyệt hồ sơ.',403)
+     if action=='team':return redirect(tr.approve(c,u,e,f,calc))
      note=required(f,'note',2000)
      if action=='reopen':
       if not can_manage(u) or e['status']!='approved':fail('Không thể mở lại.')
+      tr.clear(c,obj)
       c.execute('UPDATE evaluations SET status="returned",note=?,team_common=NULL,final_common=NULL,final_level=NULL WHERE id=?',(note,obj))
      elif e['status'] not in ('submitted','team'):fail('Hồ sơ chưa nộp hoặc đã duyệt.')
-     elif action=='return':c.execute('UPDATE evaluations SET status="returned",note=?,team_common=NULL WHERE id=?',(note,obj))
-     elif action=='team':
-      if not team_review(u,e) or e['status']!='submitted':fail('Không có quyền xác nhận tổ.',403)
-      c.execute('UPDATE evaluations SET status="team",team_common=?,note=? WHERE id=?',(number(f,'common'),note,obj))
+     elif action=='return':
+      tr.clear(c,obj)
+      c.execute('UPDATE evaluations SET status="returned",note=?,team_common=NULL WHERE id=?',(note,obj))
      elif action=='approve':
       if not can_manage(u) or not f.get('confirmed'):fail('Cần BGH xác nhận.',403)
       teacher=one(c,'SELECT role FROM users WHERE id=?',(e['user'],));has_leader=one(c,'SELECT id FROM users WHERE department=? AND role="leader" AND active=1 AND id<>?',(e['department'],e['user']))
