@@ -79,14 +79,16 @@ def metadata(c,e,axis,t=None):
  data=catalogue(c,e,axis,choices(c,axis,current)+['__other__'])
  def suggest(kind,label,value):
   options=data.get(current,data['__other__'])[kind] if current else []
-  menu='<select class="field-suggestions" data-suggest="'+kind+'" aria-label="Gợi ý '+h(label.lower())+'"><option value="">Chọn gợi ý</option>'+''.join('<option value="'+h(x['value'])+'">'+h(x['label'])+'</option>' for x in options)+'</select>'
-  return '<div class="suggest-field">'+field(label,kind,value,attrs='required maxlength="500"')+menu+'</div>'
+  values={x['value'] for x in options}
+  custom=bool(value and value not in values)
+  menu='<label>'+h(label)+'<select class="field-suggestions" data-suggest="'+kind+'" required><option value="">Chọn gợi ý</option>'+''.join('<option value="'+h(x['value'])+'"'+(' selected' if x['value']==value else '')+'>'+h(x['label'])+'</option>' for x in options)+'<option value="__custom__"'+(' selected' if custom else '')+'>Tự nhập</option></select></label>'
+  return '<div class="suggest-field">'+menu+'<input name="'+kind+'" type="text" value="'+h(value)+'" maxlength="500" data-suggest-value="'+kind+'" aria-label="'+h(label)+'" placeholder="Tự nhập nội dung"'+('' if custom else ' hidden')+'></div>'
  return '<div class="work-meta-fields" data-work-suggestions="'+h(json.dumps(data,ensure_ascii=False))+'">'+title_fields(c,axis,t)+'<div class="twocol work-meta">'+suggest('source','Căn cứ giao nhiệm vụ',t.get('source',''))+suggest('product','Sản phẩm cụ thể',t.get('product',''))+'</div>'+ '<div class="formgrid">'+select('Phân nhóm đề xuất','grp',[('','Chọn nhóm'),(1,'Nhóm 1 · 100 điểm'),(2,'Nhóm 2 · 150 điểm'),(3,'Nhóm 3 · 200 điểm'),(4,'Nhóm 4 · 250 điểm')],t.get('grp',''),attrs='required')+field('Số lượng phải hoàn thành','qty',t.get('qty',1),'number','min="1" max="1000000" required')+quarter_field(e,'Thời hạn hoàn thành','due',t.get('due'))+'</div></div>'
 
 def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
  import evidence_upload as eu
- fields=metadata(c,e,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+quarter_field(e,'Thời gian hoàn thành thực tế','finish',optional=True,default_quarter=True)+'</div>'+eu.fields()+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
+ fields=metadata(c,e,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+quarter_field(e,'Thời gian hoàn thành thực tế','finish',optional=True,default_quarter=True)+'</div>'+eu.fields()+eu.outstanding_fields(c)
  opened=' open' if add_next else ''
  return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b class="new-work-title"><svg class="new-work-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nhập thêm công việc {count+1}</b></summary><form method="post" action="/action/self_add/{e["id"]}" enctype="multipart/form-data" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
 
@@ -130,11 +132,12 @@ def action(c,u,f,action,obj):
  if action=='self_edit':
   c.execute('UPDATE tasks SET title=?,source=?,product=?,grp=?,qty=?,due=? WHERE id=?',(title,source,product,grp,qty,due,tid));audit(c,uid,'Sửa nội dung công việc tự khai',e['id'],title)
  else:
-  done=integer(f,'done',0,1000000,True);cor=integer(f,'corrections',0,1000000,True);finish=read_quarter(f,'finish',e,True,due);ev=optional(f,'evidence');out=int(bool(f.get('outstanding')));note=optional(f,'outstanding_note')
+  done=integer(f,'done',0,1000000,True);cor=integer(f,'corrections',0,1000000,True);finish=read_quarter(f,'finish',e,True,due);ev=optional(f,'evidence');out=int(f.get('outstanding')=='1');note=optional(f,'outstanding_note') if out else ''
   if finish and finish>cutoff:fail('Ngày hoàn thành sau thời điểm chốt quý.')
   tid=c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence,outstanding,outstanding_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,source,axis,grp,product,qty,due,done,cor,finish,ev,out,note)).lastrowid
   import evidence_upload as eu
   eu.save_files(c,u,e,tid,f)
+  eu.save_outstanding(c,u,e,tid,f,out,note)
   audit(c,uid,'Tự khai nhiệm vụ',e['id'],str(tid));audit(c,uid,'Nội dung nhiệm vụ tự khai',e['id'],title)
  if action=='self_add' and f.get('next_work')=='1':return redirect(f'/eval/{e["id"]}?axis={axis}&add=1#axis-workspace')
  return redirect(f'/eval/{e["id"]}?axis={axis}')
