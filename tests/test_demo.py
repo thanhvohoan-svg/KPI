@@ -377,4 +377,22 @@ class DemoTest(unittest.TestCase):
   self.assertEqual(c.get('/attachment/'+files[0]).content,b'%PDF-1.4 demo')
   self.logout(c);self.login(c,'giaovientoan')
   self.assertEqual(c.get('/attachment/'+files[0]).status_code,403)
+ def test_metadata_suggestions(self):
+  c=self.client();self.login(c,'totruong')
+  self.post(c,'/action/quick_evidence/1',{'scope':'team','title':'Quyết định phân công mẫu','reference':'QĐ DEMO 214 (giả lập)','task_title':'Công tác chủ nhiệm lớp'},'/quick')
+  self.logout(c);self.login(c,'giaovien')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('data-work-suggestions',page)
+  self.assertIn('data-suggest="source"',page)
+  self.assertIn('data-suggest="product"',page)
+  self.assertIn('QĐ DEMO 214 (giả lập)',page)
+  self.assertIn('Hồ sơ, sổ chủ nhiệm',page)
+  self.assertIn('Loại văn bản: Quyết định phân công nhiệm vụ giảng dạy và chủ nhiệm lớp',page)
+  self.assertIn('Biên bản sinh hoạt',page)
+  import json,html
+  data=json.loads(html.unescape(re.search(r'data-work-suggestions="([^"]+)"',page).group(1)))
+  self.assertEqual(data['Công tác chủ nhiệm lớp']['source'][0]['value'],'QĐ DEMO 214 (giả lập)')
+  self.assertNotIn('QĐ DEMO 214 (giả lập)',str(data['Soạn kế hoạch bài dạy']))
+  self.logout(c);self.login(c,'giaovientoan')
+  self.assertNotIn('QĐ DEMO 214 (giả lập)',c.get('/eval/5?axis=1').text)
 if __name__=='__main__':unittest.main(verbosity=2)

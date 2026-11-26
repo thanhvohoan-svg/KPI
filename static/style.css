@@ -136,3 +136,6 @@ header .header-account{display:flex;flex-direction:column;align-items:flex-end;g
 
 .work-actions{justify-content:flex-end}.axis-content .new-work .axis-actions{justify-content:flex-end}
 @media(max-width:700px){.work-actions button{flex:0 1 auto}}
+
+/* V2.23: editable metadata suggestions */
+.suggest-field{min-width:0}.suggest-field>label{margin-bottom:3px}.suggest-field select.field-suggestions{margin:0 0 8px;width:100%;color:#005b00;font-size:14px;background:#f7fbf7;border-color:#a4c9a4}.suggest-field select.field-suggestions:disabled{display:none}.work-meta-fields .work-choice{margin-bottom:8px}
