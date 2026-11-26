@@ -101,7 +101,11 @@ def kpi_sheet(w,c,e,calc,hide_evidence=False):
    vals=[j,t['title'],'Nhóm '+str(t['grp'])+' ('+str(50+t['grp']*50)+'đ)',50+t['grp']*50,t['product'],t['qty'],None,None,z['ratio'] if t['done'] is not None else None,None,t['corrections'],None,None,None,None,None,None,None,note]
    for col,val in enumerate(vals):put(sh,r,col,val,f['body'] if col in (1,4,18) else f['center'])
    for col,val in [(6,t['effective_due'] or t['due']),(12,t['finish'])]:
-    if val:sh.write_datetime(r,col,dt.datetime.fromisoformat(val),f['date'])
+    if val:
+     from axis_self import date_label
+     label=date_label(e,val,(t['effective_due'] or t['due']) if col==12 else None)
+     if label.startswith('Quý '):sh.write(r,col,label,f['center'])
+     else:sh.write_datetime(r,col,dt.datetime.fromisoformat(val),f['date'])
    put(sh,r,8,vals[8],f['pct'])
    h='H'+str(rr);jcell='J'+str(rr)
    sh.write_formula(r,7,'=0' if t['cancelled'] else f'=D{rr}'+(f'*F{rr}' if e['mode']=='product' else ''),f['num'],z['base'])

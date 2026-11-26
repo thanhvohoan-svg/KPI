@@ -238,4 +238,29 @@ class DemoTest(unittest.TestCase):
   nxt=self.post(c,'/action/axis_next/1',{'axis':'1'},'/eval/1')
   self.assertEqual(nxt.headers['location'],'/eval/1?axis=2')
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',c.get('/eval/1?axis=1').text)
+ def test_quarter_work_fields(self):
+  c=self.client();self.login(c,'giaovien')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('Thời gian hoàn thành thực tế',page)
+  self.assertIn('value="quarter" selected>Quý III/2026',page)
+  base={'source':'KH mẫu','product':'Sản phẩm mẫu','grp':'1','qty':'1','done':'1','corrections':'0','axis':'1','evidence':'Minh chứng mẫu'}
+  self.post(c,'/action/self_add/1',dict(base,choice='Bồi dưỡng học sinh giỏi',due='quarter',finish='quarter'),'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('Hạn: Quý III/2026',page)
+  self.assertIn('KPI: 70.00/70.00',page)
+  self.post(c,'/action/self_add/1',dict(base,choice='Sinh hoạt chuyên môn',due='exact',due_exact='2026-09-25',finish='quarter'),'/eval/1',400)
+  self.post(c,'/action/self_add/1',dict(base,choice='Sinh hoạt chuyên môn',due='exact',due_exact='2026-09-25',finish='exact',finish_exact='2026-09-30'),'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  ids=re.findall(r'/action/task/(\d+)',page)
+  self.assertEqual(len(ids),2)
+  self.post(c,'/action/task/'+ids[1],dict(done='1',corrections='0',finish='quarter',evidence='Minh chứng'),'/eval/1',400)
+  self.post(c,'/action/task/'+ids[0],dict(done='1',corrections='0',finish='quarter',evidence='Minh chứng'),'/eval/1')
+  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
+  w=load_workbook(io.BytesIO(r.content),data_only=True);sh=w.active
+  rows={row[1].value:row for row in sh.iter_rows() if row[1].value in ('Bồi dưỡng học sinh giỏi','Sinh hoạt chuyên môn')}
+  self.assertEqual(rows['Bồi dưỡng học sinh giỏi'][6].value,'Quý III/2026')
+  self.assertEqual(rows['Bồi dưỡng học sinh giỏi'][12].value,'Quý III/2026')
+  self.assertEqual(rows['Sinh hoạt chuyên môn'][6].value.strftime('%Y-%m-%d'),'2026-09-25')
+  self.assertEqual(rows['Sinh hoạt chuyên môn'][12].value.strftime('%Y-%m-%d'),'2026-09-30')
+  self.assertLess(rows['Sinh hoạt chuyên môn'][13].value,100)
 if __name__=='__main__':unittest.main(verbosity=2)
