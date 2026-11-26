@@ -56,13 +56,17 @@ def render_sheet(sh,kind):
 
 def evidence_panel(c,calc):
  from app import h
+ import quick
  items=[]
  for t,z in calc['rows']:
   desc=(t['evidence'] or '').strip()
   files=c.execute('SELECT id,filename FROM attachments WHERE task=? ORDER BY id',(t['id'],)).fetchall()
-  if not desc and not files:continue
+  shared=quick.links_html(c,t['id'])
+  if not desc and not files and not shared:continue
   body='<li><b>Trục '+str(t['axis'])+' · '+h(t['title'])+'</b>'
-  if desc:body+='<p class="evidence-text">'+h(desc)+'</p>'
+  manual=(t.get('manual_evidence',desc) or '').strip()
+  if manual:body+='<p class="evidence-text">'+h(manual)+'</p>'
+  if shared:body+=shared
   if files:body+='<div class="evidence-files">'+''.join('<a class="btn small secondary" href="/attachment/'+str(f['id'])+'">'+h(f['filename'])+'</a>' for f in files)+'</div>'
   items.append(body+'</li>')
  if not items:return ''
