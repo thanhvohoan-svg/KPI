@@ -82,8 +82,8 @@ def dashboard(c,u,p,periods,es,csrf,r):
   if e['team_common'] is not None:common_cell+='<small class="team-score-stage">Tổ: '+fmt(e['team_common'])+'</small>'
   if e['final_common'] is not None:common_cell+='<small class="team-score-stage">BGH: '+fmt(e['final_common'])+'</small>'
   kpi=z['kpi'] if z['n'] else None
-  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',review_links(u,e),badge(e['status']),common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['self_level'] or '—'),h(e['final_level'] or '—')])
- if rows:body+=table(['Họ và tên','Hồ sơ / Thao tác','Trạng thái','Tiêu chí chung /30','KPI /70','Tổng /100','Tự xếp loại','Xếp loại chính thức'],rows)
+  rows.append([f'<a class="member-name" href="{href}">'+h(e['name'])+'</a>',badge(e['status']),common_cell,'<strong>'+fmt(kpi)+'</strong>',fmt(common+kpi) if common is not None and kpi is not None else '—',h(e['self_level'] or '—'),h(e['final_level'] or '—'),review_links(u,e)])
+ if rows:body+=table(['Họ và tên','Trạng thái','Tiêu chí chung /30','KPI /70','Tổng /100','Tự xếp loại','Xếp loại chính thức','Hồ sơ / Thao tác'],rows)
  else:body+='<p class="team-empty">Không có hồ sơ phù hợp.</p>'
  body+='<p class="muted team-list-count">Hiển thị '+str(len(rows))+'/'+str(len(members))+' tổ viên. Hồ sơ chờ đánh giá được ưu tiên ở đầu.</p></section>'
  return layout('Đánh giá tổ viên',body+'</div></div>',u,csrf,compact=True)
