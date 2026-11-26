@@ -312,4 +312,28 @@ class DemoTest(unittest.TestCase):
   self.assertIn(template['title'],page)
   self.assertIn('Cần bổ sung',page)
   self.assertNotIn('Biên bản thử của tổ',page)
+ def test_simple_axis_picker(self):
+  c=self.client();self.login(c,'giaovien')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('CHỌN CÁC CÔNG VIỆC ĐÃ THỰC HIỆN',page)
+  self.assertLess(page.index('id="axis-picker"'),page.index('class="axis-task-list"'))
+  self.assertIn('Thêm công việc ngoài danh mục',page)
+  ids=re.findall(r'name="sug_([a-f0-9]+)"',page)
+  self.assertGreaterEqual(len(ids),2)
+  res=self.post(c,'/action/quick_add/1',{'axis':'1','sug_'+ids[0]:'1','sug_'+ids[1]:'1'},'/eval/1')
+  self.assertIn('&focus=',res.headers['location'])
+  page=c.get(res.headers['location']).text
+  tasks=re.findall(r'/action/task/(\d+)',page)
+  self.assertEqual(len(tasks),2)
+  self.assertEqual(page.count('name="axis-work" open'),1)
+  self.assertIn('class="work-metadata" open',page)
+  self.post(c,'/action/task/'+tasks[0],{'done':'1','corrections':'0','finish':'quarter','evidence':'Mẫu'},'/eval/1',400)
+  title=re.search(r'Công việc 1: ([^<]+)',page).group(1)
+  saved=self.post(c,'/action/task/'+tasks[0],{'edit_meta':'1','choice':title,'source':'KH thử','product':'Sản phẩm thử','grp':'1','qty':'1','due':'quarter','done':'1','corrections':'0','finish':'quarter','evidence':'Mẫu','next_after':'1'},'/eval/1')
+  self.assertIn('&focus='+tasks[1],saved.headers['location'])
+  page=c.get(saved.headers['location']).text
+  self.assertIn('Đã lưu đủ dữ liệu',page)
+  self.assertIn('Cần bổ sung',page)
+  self.assertIn('CÔNG VIỆC ĐÃ LƯU (2)',page)
+  self.post(c,'/action/axis_next/1',{'axis':'1'},'/eval/1',400)
 if __name__=='__main__':unittest.main(verbosity=2)
