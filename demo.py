@@ -38,7 +38,22 @@ def seed():
                 done=qty if e['user']!=2 or axis!=2 else 1
                 finish=due if done==qty else None
                 c.execute('INSERT INTO tasks(evaluation,title,source,axis,grp,product,qty,due,done,corrections,finish,evidence) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(e['id'],title,'KH DEMO 01 (giả lập)',axis,grp,product,qty,due,done,0,finish,'Minh chứng mẫu, không phải hồ sơ thật'))
-        c.execute('UPDATE evaluations SET status="approved",team_common=28,final_common=28,final_level=?,self_level=?,note="Dữ liệu mẫu đã duyệt" WHERE user IN (4,5,6)',(LEVELS[1],LEVELS[1]))
+        c.execute('UPDATE evaluations SET status="approved",team_common=28,final_common=28,final_level=?,self_level=?,note="Dữ liệu mẫu đã duyệt" WHERE user IN (5,6)',(LEVELS[1],LEVELS[1]))
+        # A fully scored fictitious teacher is waiting for the leader in a new demo.
+        from common_criteria import DEFAULT,leaves,pack,setup
+        from core import calculate,suggestion
+        setup(c)
+        e=c.execute('SELECT id FROM evaluations WHERE user=4').fetchone()
+        eid=e['id'];data=DEFAULT['3'];remaining=2;scores={}
+        for key,_,maximum in leaves(data):
+            reduction=min(remaining,maximum);remaining-=reduction;scores[key]=maximum-reduction
+        common=round(sum(scores.values()),2)
+        c.execute('INSERT INTO common_scores(evaluation,appendix,template,scores) VALUES(?,?,?,?)',(eid,'3',pack(data),pack(scores)))
+        calc=calculate(c.execute('SELECT * FROM tasks WHERE evaluation=? ORDER BY axis,id',(eid,)).fetchall(),'task',(),'2026-09-30')
+        level=suggestion(calc,common)
+        import json
+        snapshot=json.dumps({'common':common,'calc':calc,'level':level},ensure_ascii=False,default=lambda x:dict(x))
+        c.execute('UPDATE evaluations SET status="submitted",common=?,self_level=?,self_snapshot=?,note="" WHERE id=?',(common,level,snapshot,eid))
     with closing(connect()) as c:
         c.execute('PRAGMA wal_checkpoint(TRUNCATE)')
 seed()
