@@ -60,12 +60,13 @@ def evidence_panel(c,calc):
  items=[]
  for t,z in calc['rows']:
   desc=(t['evidence'] or '').strip()
-  files=c.execute('SELECT id,filename FROM attachments WHERE task=? ORDER BY id',(t['id'],)).fetchall()
+  files=c.execute('SELECT a.id,a.filename FROM attachments a LEFT JOIN outstanding_files x ON x.attachment=a.id WHERE a.task=? AND (x.attachment IS NULL OR ?=1) ORDER BY a.id',(t['id'],int(bool(t['outstanding'])))).fetchall()
   shared=quick.links_html(c,t['id'])
   if not desc and not files and not shared:continue
   body='<li><b>Trục '+str(t['axis'])+' · '+h(t['title'])+'</b>'
   manual=(t.get('manual_evidence',desc) or '').strip()
   if manual:body+='<p class="evidence-text">'+h(manual)+'</p>'
+  if t.get('outstanding_proof'):body+='<p class="evidence-text"><b>Minh chứng vượt yêu cầu:</b> '+h(t['outstanding_proof'])+'</p>'
   if shared:body+=shared
   if files:body+='<div class="evidence-files">'+''.join('<a class="btn small secondary" href="/attachment/'+str(f['id'])+'">'+h(f['filename'])+'</a>' for f in files)+'</div>'
   items.append(body+'</li>')
