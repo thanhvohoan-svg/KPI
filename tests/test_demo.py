@@ -395,4 +395,36 @@ class DemoTest(unittest.TestCase):
   self.assertNotIn('QĐ DEMO 214 (giả lập)',str(data['Soạn kế hoạch bài dạy']))
   self.logout(c);self.login(c,'giaovientoan')
   self.assertNotIn('QĐ DEMO 214 (giả lập)',c.get('/eval/5?axis=1').text)
+ def test_compact_suggestions_outstanding(self):
+  c=self.client();self.login(c,'giaovien')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('data-suggest-value="source"',page)
+  self.assertIn('value="__custom__"',page)
+  self.assertIn('name="outstanding" value="0" checked',page)
+  self.assertIn('data-outstanding-details hidden',page)
+  self.assertIn('name="outstanding_evidence"',page)
+  self.assertIn('name="outstanding_file"',page)
+  ids=re.findall(r'name="tpl_(\d+)"',page)
+  r=self.post(c,'/action/quick_add/1',{'axis':'1','tpl_'+ids[0]:'1'},'/eval/1')
+  page=c.get(r.headers['location']).text
+  tid=re.search(r'/action/task/(\d+)',page).group(1)
+  base={'done':'10','corrections':'0','finish':'quarter','evidence':'Sản phẩm đã thực hiện','outstanding':'1','outstanding_note':'Kết quả cao hơn yêu cầu'}
+  self.post(c,'/action/task/'+tid,base,'/eval/1',400)
+  self.post(c,'/action/task/'+tid,dict(base,outstanding_evidence='Báo cáo kết quả vượt mức'),'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('name="outstanding" value="1" checked',page)
+  self.assertIn('Báo cáo kết quả vượt mức',page)
+  token=self.csrf(c,'/eval/1?axis=1')
+  r=c.post('/action/task/'+tid,data={'csrf':token,**base,'outstanding_evidence':''},files={'outstanding_file':('ket-qua.pdf',b'%PDF demo','application/pdf')},follow_redirects=False)
+  self.assertEqual(r.status_code,303,r.text)
+  page=c.get('/eval/1?axis=1').text
+  self.assertIn('ket-qua.pdf',page)
+  r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
+  w=load_workbook(io.BytesIO(r.content),data_only=True)
+  self.assertTrue(any('Minh chứng vượt yêu cầu:' in str(cell.value) and 'ket-qua.pdf' in str(cell.value) for row in w.active.iter_rows() for cell in row))
+  self.post(c,'/action/task/'+tid,dict(base,outstanding='0'),'/eval/1')
+  page=c.get('/eval/1?axis=1').text
+  self.assertNotIn('name="outstanding" value="1" checked',page)
+  self.post(c,'/action/self_delete/'+tid,{'confirmed':'1'},'/eval/1')
+  self.assertNotIn('ket-qua.pdf',c.get('/eval/1?axis=1').text)
 if __name__=='__main__':unittest.main(verbosity=2)

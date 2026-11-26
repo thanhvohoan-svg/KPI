@@ -73,7 +73,7 @@ def layout(title,body,u=None,csrf='',nav=True,compact=False):
   links+='<div class="header-account"><strong>'+h(u['name'])+'</strong>'+form('/logout',csrf,'','Đăng xuất')+'</div>'
  heading='' if compact else f'<div class="heading"><div><p class="eyebrow">HỆ THỐNG ĐÁNH GIÁ HẰNG QUÝ</p><h1>{h(title)}</h1></div></div>'
  main_class=' class="personal-main"' if compact else ''
- return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=224"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.24</footer></main></body></html>')
+ return HTMLResponse(f'<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{h(title)} · THPT chuyên Trần Hưng Đạo - Lâm Đồng</title><link rel="stylesheet" href="/static/style.css?v=225"></head><body><header><a class="brand school-brand" href="/"><img class="school-logo" src="{LOGO_URI}" alt="Logo Trường THPT chuyên Trần Hưng Đạo" width="80" height="80"><div class="school-brand-text"><strong>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG</strong><em>Hệ thống đánh giá KPI giáo viên</em></div></a><nav>{links}</nav></header><main{main_class}>{heading}{DEMO_HINT}{body}<footer>TRƯỜNG THPT CHUYÊN TRẦN HƯNG ĐẠO - LÂM ĐỒNG · {"ONLINE DEMO – dữ liệu giả lập" if DEMO else "Dữ liệu nội bộ nhà trường"} · Phiên bản 2.25</footer></main></body></html>')
 def auth(c,r):
  tok=r.cookies.get('kpi_session',''); row=one(c,'SELECT * FROM sessions WHERE token=? AND expires>?',(token_hash(tok),int(time.time()))) if tok else None
  u=one(c,'SELECT * FROM users WHERE id=? AND active=1',(row['user'],)) if row and row['user'] else None
@@ -229,7 +229,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
  for t,z in calc['rows']:grouped[t['axis']].append((t,z))
  def counts(i):
   active=[(t,z) for t,z in grouped[i] if not t['cancelled']]
-  return sum(bool(z['ready'] and t['source'] and t['product'] and t['evidence'] and (not t['outstanding'] or t['outstanding_note'])) for t,z in active),len(active)
+  return sum(bool(z['ready'] and t['source'] and t['product'] and t['evidence'] and (not t['outstanding'] or (t['outstanding_note'] and t.get('outstanding_proof')))) for t,z in active),len(active)
  def axis_points(i):return sum(z['kpi'] for t,z in grouped[i]),sum(z['max'] for t,z in grouped[i])
  def url(i):return f'/eval/{eid}?axis={i}'
  body='<section class="panel axis-workspace" id="axis-workspace"><div class="axis-nav">'
@@ -269,7 +269,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
     fields='<input type="hidden" name="edit_meta" value="1">'+axis_self.metadata(c,e,step,data)
    else:
     fields=f'<p>{h(t["source"])} · Sản phẩm: {h(t["product"])} · SL giao: {t["qty"]} · Hạn: {h(axis_self.date_label(e,t["effective_due"] or t["due"]))} · Nhóm {t["grp"]}</p>'
-   fields+='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'] if t['corrections'] is not None else 0,'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=None if meta else t['effective_due'] or t['due'],default_quarter=t['done'] is None and (t['effective_due'] or t['due'])==end_of_quarter(e['year'],e['quarter']).isoformat())+'</div>'+quick.inline_evidence(c,e,t)+eu.fields(c,t)+'<details class="work-exception"><summary>Đề xuất vượt yêu cầu (nếu có)</summary>'+check('Đề xuất vượt yêu cầu','outstanding',t['outstanding'])+textarea('Mô tả kết quả nổi trội và tác động','outstanding_note',t['outstanding_note'])+'</details><input type="hidden" name="next_after" value="1">'
+   fields+='<div class="formgrid">'+field('Số lượng hoàn thành','done',t['done'],'number','min="0" max="1000000" required')+field('Số lần sửa do lỗi chủ quan','corrections',t['corrections'] if t['corrections'] is not None else 0,'number','min="0" max="1000000" required')+axis_self.quarter_field(e,'Thời gian hoàn thành thực tế','finish',t['finish'],optional=True,due=None if meta else t['effective_due'] or t['due'],default_quarter=t['done'] is None and (t['effective_due'] or t['due'])==end_of_quarter(e['year'],e['quarter']).isoformat())+'</div>'+quick.inline_evidence(c,e,t)+eu.fields(c,t)+eu.outstanding_fields(c,t)+'<input type="hidden" name="next_after" value="1">'
    fields+=quick.links_html(c,tid)
    delete_button=f'<button type="submit" class="work-delete-btn" form="delete-work-{tid}">Xóa công việc</button>' if meta else ''
    body+=f'<form method="post" action="/action/task/{tid}" enctype="multipart/form-data" data-work-form><input type="hidden" name="csrf" value="{h(csrf)}">'+fields+'<div class="work-actions"><button type="submit">Lưu công việc</button>'+delete_button+'</div></form>'
@@ -281,7 +281,7 @@ def axis_editor(c,e,calc,csrf,step,add_next=False,focus=''):
  body+='<div class="axis-finish"><div class="axis-actions">'
  if step>1:body+=f'<a class="btn secondary" href="{url(step-1)}">← Trục trước</a>'
  body+=form(f'/action/axis_next/{eid}',csrf,f'<input type="hidden" name="axis" value="{step}">',('Hoàn thành trục · sang trục '+str(step+1)+' →') if step<6 else 'Hoàn thành trục · tổng hợp →')+'</div></div></div></section>'
- body+='<script src="/static/axis.js?v=223" defer></script>'
+ body+='<script src="/static/axis.js?v=225" defer></script>'
  return body
 
 @app.get('/eval/{eid}')
@@ -425,7 +425,7 @@ async def actions(r:Request,action:str='',obj:int=0):
    if action in ('self_add','self_edit','self_delete'):return axis_self.action(c,u,f,action,obj)
    if action=='axis_next':
     e=get_eval(c,u,obj);own_edit(u,e);axis=integer(f,'axis',1,6);calc=result(c,e)
-    if any(t['axis']==axis and not t['cancelled'] and (not z['ready'] or not t['source'] or not t['product'] or not t['evidence'] or (t['outstanding'] and not t['outstanding_note'])) for t,z in calc['rows']):fail('Trục còn công việc thiếu dữ liệu. Mở công việc cần bổ sung, lưu lại rồi chuyển trục.')
+    if any(t['axis']==axis and not t['cancelled'] and (not z['ready'] or not t['source'] or not t['product'] or not t['evidence'] or (t['outstanding'] and (not t['outstanding_note'] or not t.get('outstanding_proof')))) for t,z in calc['rows']):fail('Trục còn công việc thiếu dữ liệu. Mở công việc cần bổ sung, lưu lại rồi chuyển trục.')
     return redirect(f'/eval/{obj}?axis={axis+1}')
    if action=='axis':
     e=get_eval(c,u,obj);own_edit(u,e);axis=integer(f,'axis',1,6);advance=integer(f,'advance',0,1);tasks=allrows(c,'SELECT * FROM tasks WHERE evaluation=? AND axis=? AND cancelled=0 ORDER BY id',(obj,axis))
@@ -456,16 +456,17 @@ async def actions(r:Request,action:str='',obj:int=0):
        t=one(c,'SELECT * FROM tasks WHERE id=?',(obj,))
       if not t['source'] or not t['product']:fail('Cần bổ sung thông tin nhiệm vụ trước khi lưu kết quả.')
       quick.save_inline(c,u,e,t,f)
-      done=integer(f,'done',0,1000000);cor=integer(f,'corrections',0,1000000);finish=axis_self.read_quarter(f,'finish',e,True,t['effective_due'] or t['due']);evidence=optional(f,'evidence');out=int(bool(f.get('outstanding')));on=optional(f,'outstanding_note')
+      done=integer(f,'done',0,1000000);cor=integer(f,'corrections',0,1000000);finish=axis_self.read_quarter(f,'finish',e,True,t['effective_due'] or t['due']);evidence=optional(f,'evidence');out=int(f.get('outstanding')=='1');on=optional(f,'outstanding_note') if out else ''
       if finish and finish>end_of_quarter(e['year'],e['quarter']).isoformat():fail('Ngày hoàn thành sau ngày kết thúc quý. Chỉ nhập kết quả tại thời điểm chốt quý.')
       if done>=t['qty'] and not finish:fail('Cần thời gian hoàn thành khi đủ số lượng.')
       if out and not on:fail('Cần mô tả kết quả vượt yêu cầu.')
       c.execute('UPDATE tasks SET done=?,corrections=?,finish=?,evidence=?,outstanding=?,outstanding_note=? WHERE id=?',(done,cor,finish,evidence,out,on,obj));audit(c,uid,'Lưu kết quả',e['id'],t['title'])
       eu.save_files(c,u,e,obj,f)
+      eu.save_outstanding(c,u,e,obj,f,out,on)
      else:
       eu.save_files(c,u,e,obj,f,required=True)
     if action=='task' and f.get('next_after'):
-     nxt=next((x['id'] for x,z in result(c,e)['rows'] if x['axis']==t['axis'] and x['id']!=obj and not x['cancelled'] and (not z['ready'] or not x['source'] or not x['product'] or not x['evidence'] or (x['outstanding'] and not x['outstanding_note']))),None)
+     nxt=next((x['id'] for x,z in result(c,e)['rows'] if x['axis']==t['axis'] and x['id']!=obj and not x['cancelled'] and (not z['ready'] or not x['source'] or not x['product'] or not x['evidence'] or (x['outstanding'] and (not x['outstanding_note'] or not x.get('outstanding_proof'))))),None)
      if nxt:return redirect(f'/eval/{e["id"]}?axis={t["axis"]}&focus={nxt}#axis-workspace')
     return redirect(f'/eval/{e["id"]}?axis={t["axis"]}')
    if action in ('common','submit','team','return','approve','reopen'):
@@ -474,7 +475,7 @@ async def actions(r:Request,action:str='',obj:int=0):
      own_edit(u,e)
      if action=='common':fail('Hãy chấm từng tiêu chí trong Phần I.',400)
      else:
-      if not f.get('confirmed') or not calc['ready'] or cc.read(c,e) is None or e['common'] is None or e['department'] is None or any(not t['cancelled'] and (not t['source'] or not t['product'] or (t['outstanding'] and not t['outstanding_note'])) for t,z in calc['rows']):fail('Cần xác nhận, phân tổ, nhiệm vụ, kết quả, minh chứng và điểm chung đầy đủ.')
+      if not f.get('confirmed') or not calc['ready'] or cc.read(c,e) is None or e['common'] is None or e['department'] is None or any(not t['cancelled'] and (not t['source'] or not t['product'] or (t['outstanding'] and (not t['outstanding_note'] or not t.get('outstanding_proof')))) for t,z in calc['rows']):fail('Cần xác nhận, phân tổ, nhiệm vụ, kết quả, minh chứng và điểm chung đầy đủ.')
       tr.clear(c,obj)
       snapshot=json.dumps({'common':e['common'],'calc':calc,'level':suggestion(calc,e['common'])},ensure_ascii=False);c.execute('UPDATE evaluations SET status="submitted",self_snapshot=?,self_level=?,team_common=NULL,final_common=NULL,final_level=NULL WHERE id=?',(snapshot,suggestion(calc,e['common']),obj));audit(c,uid,'Nộp hồ sơ',obj,snapshot)
     else:

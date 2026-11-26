@@ -60,9 +60,9 @@ def score_task(t,mode='task',holidays=(),cutoff=None):
  return dict(base=base,a=a,b=b,c=c,actual=(a+b+c)/3,late=late,ratio=ratio,ready=ready,complete=complete)
 def calculate(tasks,mode='task',holidays=(),cutoff=None):
  rows=[(dict(t),score_task(t,mode,holidays,cutoff)) for t in tasks]; base=sum(s['base'] for _,s in rows); actual=sum(s['actual'] for _,s in rows)
- active=[(t,s) for t,s in rows if s['base']]; n=len(active); outstanding=sum(bool(t['outstanding'] and t['outstanding_note'] and t['evidence'] and s['complete'] and s['late']==0) for t,s in active)
+ active=[(t,s) for t,s in rows if s['base']]; n=len(active); outstanding=sum(bool(t['outstanding'] and t['outstanding_note'] and t['evidence'] and t.get('outstanding_proof',t['evidence']) and s['complete'] and s['late']==0) for t,s in active)
  for t,s in rows: s['max']=70*s['base']/base if base else 0; s['kpi']=70*s['actual']/base if base else 0
- return dict(rows=rows,base=base,kpi=70*actual/base if base else 0,n=n,outstanding=outstanding,late=sum(not s['complete'] or s['late']>0 for _,s in active),ready=bool(n) and all(s['ready'] and t['evidence'] for t,s in active),all_complete=bool(n) and all(s['complete'] and s['late']==0 for _,s in active))
+ return dict(rows=rows,base=base,kpi=70*actual/base if base else 0,n=n,outstanding=outstanding,late=sum(not s['complete'] or s['late']>0 for _,s in active),ready=bool(n) and all(s['ready'] and t['evidence'] and (not t['outstanding'] or (t['outstanding_note'] and t.get('outstanding_proof',t['evidence']))) for t,s in active),all_complete=bool(n) and all(s['complete'] and s['late']==0 for _,s in active))
 def eligible_xs(calc,common): return common is not None and common+calc['kpi']>=90-1e-8 and calc['all_complete'] and calc['outstanding']*10>=calc['n']*3 and calc['ready']
 def suggestion(calc,common):
  if common is None or not calc['n']: return 'Chưa đủ dữ liệu'

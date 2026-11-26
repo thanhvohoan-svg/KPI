@@ -24,14 +24,19 @@ def linked(c,tid):
  return c.execute('SELECT s.id,s.title,s.reference,s.filename FROM evidence_store s JOIN evidence_links l ON l.evidence=s.id WHERE l.task=? ORDER BY s.title,s.id',(tid,)).fetchall()
 
 def enrich(c,tasks):
- setup(c)
+ import evidence_upload as eu
+ setup(c);eu.setup(c)
  out=[]
  for t in tasks:
   t=dict(t);t['manual_evidence']=t['evidence'] or ''
   refs=linked(c,t['id'])
   extra=['Kho minh chứng: '+r['title']+(' · '+r['reference'] if r['reference'] else '')+(' · '+r['filename'] if r['filename'] else '') for r in refs]
   if not t['manual_evidence'] and not extra:
-   extra=['Tệp: '+r['filename'] for r in c.execute('SELECT filename FROM attachments WHERE task=? ORDER BY id',(t['id'],))]
+   extra=['Tệp: '+r['filename'] for r in c.execute('SELECT filename FROM attachments WHERE task=? AND id NOT IN (SELECT attachment FROM outstanding_files) ORDER BY id',(t['id'],))]
+  note,files=eu.proof(c,t['id'])
+  t['outstanding_evidence']=note if t['outstanding'] else ''
+  t['outstanding_proof']='; '.join(([note] if note else [])+['Tệp: '+r['filename'] for r in files]) if t['outstanding'] else ''
+  if t['outstanding_proof']:extra.append('Minh chứng vượt yêu cầu: '+t['outstanding_proof'])
   t['evidence']='; '.join(x for x in [t['manual_evidence']]+extra if x)
   out.append(t)
  return out
