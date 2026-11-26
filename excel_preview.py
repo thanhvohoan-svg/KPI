@@ -54,27 +54,6 @@ def render_sheet(sh,kind):
   out+='</tr>'
  return out+'</tbody></table></div>'
 
-def compact_kpi(calc):
- from app import h
- from axis_self import AXES
- def n(v):return f'{v:.2f}'
- def val(v):return '—' if v is None else h(v)
- out='<div class="tablewrap compact-kpi"><table><thead><tr><th>Nội dung công việc</th><th>Sản phẩm</th><th>Nhóm</th><th>Số lượng</th><th>Chất lượng</th><th>Tiến độ</th><th>KPI đạt / tối đa</th></tr></thead><tbody>'
- for axis in range(1,7):
-  items=[(t,z) for t,z in calc['rows'] if t['axis']==axis]
-  if not items:continue
-  out+='<tr class="compact-kpi-axis"><td colspan="6">TRỤC '+str(axis)+' · '+h(AXES[axis][0])+'</td><td>'+n(sum(z['kpi'] for t,z in items))+' / '+n(sum(z['max'] for t,z in items))+'</td></tr>'
-  for t,z in items:
-   qty=val(t['done'])+'/'+str(t['qty'])+'<small>A: '+n(z['a'])+'</small>'
-   quality=val(t['corrections'])+' lần sửa<small>B: '+n(z['b'])+'</small>'
-   timing='Hạn: '+val(t['effective_due'] or t['due'])+'<small>Hoàn thành: '+val(t['finish'])+'</small><small>Chậm: '+str(z['late'])+' ngày · C: '+n(z['c'])+'</small>'
-   if t['cancelled']:qty=quality=timing='Dừng hợp lệ'
-   cells=[h(t['title']),h(t['product']),str(t['grp'])+'<small>Chuẩn: '+n(z['base'])+'</small>',qty,quality,timing,'<b>'+n(z['kpi'])+' / '+n(z['max'])+'</b>']
-   out+='<tr>'+''.join('<td>'+v+'</td>' for v in cells)+'</tr>'
- if not calc['rows']:out+='<tr><td colspan="7">Chưa có công việc.</td></tr>'
- out+='<tr class="compact-kpi-total"><td colspan="6">TỔNG ĐIỂM KPI</td><td>'+n(calc['kpi'])+' / 70</td></tr></tbody></table></div>'
- return out
-
 def evidence_panel(c,calc):
  from app import h
  items=[]
@@ -96,7 +75,10 @@ def preview(c,e,calc,csrf='',active=False):
  b,w=workbook();pe.common_sheet(w,c,e);w.close();b.seek(0);book=load_workbook(b,data_only=True)
  try:common=render_sheet(book.active,'common')
  finally:book.close()
+ b,w=workbook();pe.kpi_sheet(w,c,e,calc,hide_evidence=True);w.close();b.seek(0);book=load_workbook(b,data_only=True)
+ try:kpi=render_sheet(book.active,'kpi')
+ finally:book.close()
  out='<section class="panel excel-preview"><h2>XEM HỒ SƠ ĐÁNH GIÁ</h2>'+tr.progress(e,saved)
  out+='<section id="team-approve" class="review-part team-action-target"><h3>PHỤ LỤC CHẤM TIÊU CHÍ CHUNG</h3>'+common+tr.approval_form(e,'common',saved,csrf,active)+'</section>'
- out+='<section id="team-kpi" class="review-part team-action-target"><h3>BẢNG ĐÁNH GIÁ KPI</h3>'+compact_kpi(calc)+evidence_panel(c,calc)+tr.approval_form(e,'kpi',saved,csrf,active)+'</section>'
+ out+='<section id="team-kpi" class="review-part team-action-target"><h3>BẢNG ĐÁNH GIÁ KPI</h3>'+kpi+evidence_panel(c,calc)+tr.approval_form(e,'kpi',saved,csrf,active)+'</section>'
  return out+'</section>'
