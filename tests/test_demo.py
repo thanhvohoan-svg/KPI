@@ -284,16 +284,20 @@ class DemoTest(unittest.TestCase):
   self.post(c,'/action/quick_add/1',{'axis':'1',**{'tpl_'+i:'1' for i in ids}},'/eval/1')
   page=c.get('/eval/1?axis=1').text
   self.assertNotIn('CÔNG VIỆC ĐÃ LƯU',page)
-  doneids=re.findall(r'name="done_(\d+)"',page)
-  self.assertTrue(doneids)
-  links=re.findall(r'name="(link_\d+_\d+)"',page)
-  self.assertTrue(links)
-  self.post(c,'/action/quick_done/1',{'axis':'1',**{'done_'+i:'1' for i in doneids}},'/eval/1',400)
-  self.post(c,'/action/quick_done/1',{'axis':'1','confirmed':'1',**{'done_'+i:'1' for i in doneids},**{k:'1' for k in links}},'/eval/1')
+  self.assertNotIn('Nhập nhanh công việc',page)
+  self.assertNotIn('name="done_',page)
+  import re as _re
+  tid=None
+  for match in _re.finditer(r'<form method="post" action="/action/task/(\d+)".*?</form>',page,_re.S):
+   if template['title'] in match.group(0) and 'Biên bản thử của tổ' in match.group(0):
+    tid=match.group(1)
+    ev=_re.search(r'name="ev_(\d+)"',match.group(0)).group(1)
+    break
+  self.assertIsNotNone(tid)
+  self.post(c,'/action/task/'+tid,{'done':'3','corrections':'0','finish':'quarter','evidence':'','inline_evidence':'1','ev_'+ev:'1'},'/eval/1')
   page=c.get('/eval/1?axis=1').text
   self.assertIn('Biên bản thử của tổ',page)
   self.assertIn('Lưu công việc',page)
-  tid,ev=links[0].split('_')[1:]
   self.post(c,'/action/quick_link/'+tid,{'ev_999999':'1','confirmed':'1'},'/eval/1',403)
   r=c.get('/export/eval/1');self.assertEqual(r.status_code,200)
   w=load_workbook(io.BytesIO(r.content),data_only=True)
@@ -304,14 +308,10 @@ class DemoTest(unittest.TestCase):
   self.logout(c);self.login(c,'giaovien')
   landing=c.get('/',follow_redirects=False);path=landing.headers['location']
   page=c.get(path+'?axis=1').text
-  oldids=re.findall(r'name="old_(\d+)"',page)
-  self.assertTrue(oldids)
-  eid=path.rsplit('/',1)[1]
-  self.post(c,'/action/quick_copy/'+eid,{'axis':'1','confirmed':'1',**{'old_'+i:'1' for i in oldids}},path)
-  page=c.get(path+'?axis=1').text
-  self.assertIn(template['title'],page)
-  self.assertIn('Lưu công việc',page)
+  self.assertNotIn('Nhập nhanh công việc',page)
+  self.assertNotIn('name="old_',page)
   self.assertNotIn('Biên bản thử của tổ',page)
+  self.assertIn('Nhập thêm công việc',page)
  def test_simple_axis_picker(self):
   c=self.client();self.login(c,'giaovien')
   page=c.get('/eval/1?axis=1').text
