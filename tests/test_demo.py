@@ -205,7 +205,7 @@ class DemoTest(unittest.TestCase):
   self.assertEqual(first.headers['location'],'/eval/1?axis=1&add=1#axis-workspace')
   page=c.get('/eval/1?axis=1&add=1').text
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',page)
-  self.assertIn('Nhập công việc 2',page)
+  self.assertIn('Nhập thêm công việc 2',page)
   self.assertIn('CÔNG VIỆC ĐÃ LƯU (1)',page)
   self.assertIn('1 công việc đã lưu',page)
   self.assertIn('KPI: 70.00/70.00',page)
@@ -215,7 +215,7 @@ class DemoTest(unittest.TestCase):
   summary=c.get('/eval/1?axis=7').text
   self.assertIn('Bồi dưỡng học sinh giỏi',summary)
   self.assertIn('Công việc đã lưu',summary)
-  self.assertIn('Điểm tạm tính',summary)
+  self.assertNotIn('Điểm tạm tính',summary)
   self.assertEqual(page.count('class="panel axis-workspace" id="axis-workspace"'),1)
   self.assertIn('class="axis-intro"',page)
   self.assertIn('class="axis-progress"',page)
@@ -227,7 +227,7 @@ class DemoTest(unittest.TestCase):
   page=c.get('/eval/1?axis=1').text
   self.assertIn('Công việc 1: Bồi dưỡng học sinh giỏi',page)
   self.assertIn('Công việc 2: Sinh hoạt chuyên môn',page)
-  self.assertIn('Nhập công việc 3',page)
+  self.assertIn('Nhập thêm công việc 3',page)
   self.assertEqual(page.count('<details class="task work-card" name="axis-work">'),2)
   self.assertIn('<details class="new-work" name="axis-work">',page)
   self.post(c,'/action/self_add/1',dict(base,axis='1',choice='Công tác chủ nhiệm lớp',done='',evidence='',finish=''),'/eval/1')
@@ -275,7 +275,7 @@ class DemoTest(unittest.TestCase):
   self.assertNotIn('Nhiệm vụ chuẩn thử',c.get('/eval/5?axis=1').text)
   self.logout(c);self.login(c,'giaovien')
   page=c.get('/eval/1?axis=1').text
-  self.assertIn('Nhập nhanh công việc',page)
+  self.assertNotIn('Nhập nhanh công việc',page)
   self.assertIn(template['title'],page)
   self.post(c,'/action/quick_template/1',template,'/quick',403)
   self.post(c,'/action/quick_evidence/1',{'scope':'school','title':'Không hợp lệ','reference':'Mẫu'},'/quick',403)
@@ -317,7 +317,11 @@ class DemoTest(unittest.TestCase):
   page=c.get('/eval/1?axis=1').text
   self.assertIn('CHỌN CÁC CÔNG VIỆC ĐÃ THỰC HIỆN',page)
   self.assertLess(page.index('id="axis-picker"'),page.index('class="axis-task-list"'))
-  self.assertIn('Thêm công việc ngoài danh mục',page)
+  self.assertIn('Nhập thêm công việc',page)
+  self.assertNotIn('Điểm tạm tính',page)
+  self.assertNotIn('Nhóm 1 · SL 10',page)
+  self.assertNotIn('Chọn công việc, kiểm tra thông tin và lưu lần lượt.',page)
+  self.assertNotIn('Đã nhập hết công việc của trục?',page)
   ids=re.findall(r'name="sug_([a-f0-9]+)"',page)
   self.assertGreaterEqual(len(ids),2)
   res=self.post(c,'/action/quick_add/1',{'axis':'1','sug_'+ids[0]:'1','sug_'+ids[1]:'1'},'/eval/1')

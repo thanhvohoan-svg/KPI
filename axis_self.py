@@ -13,7 +13,7 @@ AXES={
 def intro(axis):
  from app import h
  name,desc=AXES[axis]
- return f'<div class="axis-intro"><h2>{h(name)}</h2><p>{h(desc)}</p></div>'
+ return f'<div class="axis-intro"><h2>{h(name)}</h2></div>'
 
 def manageable(c,e,t):
  from app import one,DEMO
@@ -79,7 +79,7 @@ def add_panel(c,e,csrf,axis,count,add_next=False):
  from app import field,textarea,check,form
  fields=metadata(c,e,axis)+ '<div class="formgrid">'+field('Số lượng thực tế hoàn thành','done','','number','min="0" max="1000000"')+field('Số lần chỉnh sửa do lỗi chủ quan','corrections',0,'number','min="0" max="1000000"')+quarter_field(e,'Thời gian hoàn thành thực tế','finish',optional=True)+'</div>'+textarea('Minh chứng','evidence',attrs='maxlength="2000" placeholder="Số văn bản, ngày, tên sản phẩm hoặc đường dẫn..."')+check('Đề xuất vượt yêu cầu','outstanding')+textarea('Kết quả nổi trội, hiệu quả','outstanding_note',attrs='maxlength="2000"')
  opened=' open' if add_next else ''
- return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b class="new-work-title"><svg class="new-work-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nhập công việc {count+1}</b><span class="new-work-hint">Thêm công việc ngoài danh mục</span></summary><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
+ return f'<div class="new-work-panel" id="new-work"><details class="new-work" name="axis-work"{opened}><summary><b class="new-work-title"><svg class="new-work-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nhập thêm công việc {count+1}</b></summary><form method="post" action="/action/self_add/{e["id"]}" data-work-form><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="axis" value="{axis}">'+fields+'<div class="axis-actions"><button type="submit" name="next_work" value="0" class="secondary">Lưu và thu gọn</button><button type="submit" name="next_work" value="1">Lưu và nhập công việc tiếp theo →</button></div></form></details></div>'
 
 def delete_panel(c,e,t,csrf):
  from app import form,check

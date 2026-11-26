@@ -61,11 +61,11 @@ def picker(c,e,csrf,axis,rows):
  fields='<input type="hidden" name="axis" value="'+str(axis)+'">'
  if ts or opts:
   fields+='<div class="axis-pick-list">'
-  for t in ts:fields+=check(t['title']+' · Nhóm '+str(t['grp'])+' · SL '+str(t['qty']),'tpl_'+str(t['id']))
+  for t in ts:fields+=check(t['title'],'tpl_'+str(t['id']))
   for i,title in opts:fields+=check(title,'sug_'+str(i))
   fields+='</div>'
   out+=form('/action/quick_add/'+str(e['id']),csrf,fields,'Thêm công việc đã chọn',extra='class="axis-pick-form"')
- else:out+='<p class="muted">Không còn công việc trong danh mục chưa chọn.</p>'
+ else:return ''
  return out+'</section>'
 
 def panel(c,e,csrf,axis,rows):
@@ -73,22 +73,22 @@ def panel(c,e,csrf,axis,rows):
  prev,old=prior(c,e,axis)
  old=[t for t in old if t['source'] and t['product'] and not any(normalize(t['title'])==normalize(x['title']) for x,z in rows)]
  items=available(c,e)
- out='<details class="quick-panel"><summary><b>Nhập nhanh công việc</b><span>Sao chép · Xác nhận hàng loạt</span></summary><div class="quick-body">'
+ out='<details class="quick-panel"><summary><b>Nhập nhanh công việc</b></summary><div class="quick-body">'
  if old:
-  fields='<input type="hidden" name="axis" value="'+str(axis)+'">'+''.join(check(t['title']+' · '+t['product'],'old_'+str(t['id'])) for t in old)+check('Xác nhận tên, sản phẩm, nhóm, số lượng và căn cứ vẫn phù hợp quý này','confirmed')
-  out+='<h3>Sao chép từ quý trước</h3><p class="muted">Không sao chép kết quả, minh chứng hoặc điểm. Hạn đặt lại cuối quý hiện tại; rà soát nếu có hạn riêng.</p>'+form('/action/quick_copy/'+str(e['id']),csrf,fields,'Sao chép công việc đã chọn')
+  fields='<input type="hidden" name="axis" value="'+str(axis)+'">'+''.join(check(t['title'],'old_'+str(t['id'])) for t in old)+check('Xác nhận tên, sản phẩm, nhóm, số lượng và căn cứ vẫn phù hợp quý này','confirmed')
+  out+='<h3>Sao chép từ quý trước</h3><p class="muted">Chỉ sao chép nhiệm vụ, không sao chép kết quả.</p>'+form('/action/quick_copy/'+str(e['id']),csrf,fields,'Sao chép công việc đã chọn')
  cutoff=end_of_quarter(e['year'],e['quarter']).isoformat()
  candidates=[t for t,z in rows if t['source'] and t['product'] and not t['cancelled'] and t['done'] is None and t['corrections'] is None and not t['finish'] and (t['effective_due'] or t['due'])==cutoff and t['late_override'] is None]
  if candidates:
   fields='<input type="hidden" name="axis" value="'+str(axis)+'">'
   for t in candidates:
-   fields+=check(t['title']+' · '+str(t['qty'])+' sản phẩm','done_'+str(t['id']))
+   fields+=check(t['title'],'done_'+str(t['id']))
    suggested=[r for r in items if normalize(r['task_title'])==normalize(t['title'])]
    if suggested:
     fields+='<div class="quick-suggestions"><small>Minh chứng phù hợp đã có trong kho (chọn nếu đúng thực tế)</small>'+''.join(check(r['title']+' · '+r['scope'],'link_'+str(t['id'])+'_'+str(r['id'])) for r in suggested)+'</div>'
   fields+=check('Tôi xác nhận các công việc đã chọn hoàn thành đủ số lượng, đúng hạn, không phải chỉnh sửa; minh chứng đã chọn thực sự liên quan.','confirmed')
   out+='<h3>Xác nhận kết quả hàng loạt</h3>'+form('/action/quick_done/'+str(e['id']),csrf,fields,'Lưu kết quả đã xác nhận')
- return out+'</div></details>'
+ return out+'</div></details>' if old or candidates else ''
 
 def inline_evidence(c,e,t):
  from app import check
